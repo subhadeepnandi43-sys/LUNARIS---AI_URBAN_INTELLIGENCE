@@ -17,7 +17,7 @@ from yolo_detector import LunarisYOLODetector
 logger = logging.getLogger("lunaris.ai.service")
 logging.basicConfig(level=logging.INFO)
 
-detector = LunarisYOLODetector(confidence_threshold=0.65)
+detector = LunarisYOLODetector(confidence_threshold=LunarisYOLODetector.DEFAULT_CONFIDENCE_THRESHOLD)
 processors = {
     "BUS-07": StreamProcessor(bus_id="BUS-07", stream_url="rtsp://localhost:8554/bus07", detector=detector),
     "BUS-12": StreamProcessor(bus_id="BUS-12", stream_url="rtsp://localhost:8554/bus12", detector=detector),

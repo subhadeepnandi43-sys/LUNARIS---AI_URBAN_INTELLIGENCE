@@ -4,6 +4,7 @@ LUNARIS — Fast & High-Precision Pothole & Road Defect Dataset Generator
 
 import os
 import random
+import shutil
 import cv2
 import numpy as np
 from pathlib import Path
@@ -11,7 +12,9 @@ from pathlib import Path
 random.seed(42)
 np.random.seed(42)
 
-DATASET_ROOT = Path("c:/LUNARIS/ai-detection/pothole_dataset")
+# Base directory of this file (ai-detection/), used to build the dataset path relatively
+BASE_DIR = Path(__file__).parent.resolve()
+DATASET_ROOT = BASE_DIR / "pothole_dataset"
 IMG_SIZE = (640, 640)
 
 def create_base_road_canvas():
@@ -235,7 +238,7 @@ def build_dataset():
         print(f"  [OK] [{split_name.upper()}]: {len(samples)} images ({pos_count} positive, {neg_count} hard negatives)")
 
     yaml_content = f"""# LUNEX Road Defect & Pothole Dataset YAML
-path: c:/LUNARIS/ai-detection/pothole_dataset
+path: {DATASET_ROOT.as_posix()}
 train: images/train
 val: images/val
 
@@ -249,5 +252,4 @@ names:
     print("[+] Dataset generation completed successfully!")
 
 if __name__ == "__main__":
-    import shutil
     build_dataset()

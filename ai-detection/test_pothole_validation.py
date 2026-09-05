@@ -1,7 +1,8 @@
 """
 LUNEX AI Pothole Detection Validation Suite
-Tests LUNEX-POTHOLE-V1 against positive road defects and all 8 hard negative classes.
-Confirms zero false positives on negative classes and high detection rate on actual potholes.
+Tests LUNEX-POTHOLE-V1 against the real "valid" split of real_pothole_dataset
+(images with labeled potholes vs. clean images with none).
+Confirms high detection rate on real potholes and low false positives on clean images.
 """
 
 import sys
@@ -13,6 +14,9 @@ from pathlib import Path
 # Add ai-detection to path
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
 from yolo_detector import LunarisYOLODetector
+
+# Base directory of this file (ai-detection/), used to build the dataset path relatively
+BASE_DIR = Path(__file__).parent.resolve()
 
 def run_comprehensive_validation():
     print("\n" + "="*70)
@@ -26,88 +30,60 @@ def run_comprehensive_validation():
     print(f"[*] Conf Threshold: {detector.confidence_threshold}")
     print("-" * 70)
 
-    val_dir = Path("c:/LUNARIS/ai-detection/pothole_dataset/images/val")
-    val_images = list(val_dir.glob("*.jpg"))
+    val_img_dir = BASE_DIR / "real_pothole_dataset" / "valid" / "images"
+    val_lbl_dir = BASE_DIR / "real_pothole_dataset" / "valid" / "labels"
+    val_images = list(val_img_dir.glob("*.jpg")) + list(val_img_dir.glob("*.png")) + list(val_img_dir.glob("*.jpeg"))
     print(f"[*] Total Unseen Validation Images: {len(val_images)}")
 
-    test_categories = {
-        "pos_clear_pothole": {"total": 0, "detected": 0, "type": "POSITIVE"},
-        "pos_small_pothole": {"total": 0, "detected": 0, "type": "POSITIVE"},
-        "pos_large_pothole": {"total": 0, "detected": 0, "type": "POSITIVE"},
-        "pos_multi_pothole": {"total": 0, "detected": 0, "type": "POSITIVE"},
-        "neg_normal_road": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_shadow": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_crack": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_manhole": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_road_patch": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_water_reflection": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_stone": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-        "neg_speed_breaker": {"total": 0, "false_positives": 0, "type": "NEGATIVE"},
-    }
+    total_images = 0
+    images_with_ground_truth_pothole = 0
+    correctly_detected = 0
+    images_with_no_ground_truth = 0
+    false_positives_on_clean_images = 0
 
     detailed_results = []
 
     for img_path in val_images:
-        stem = img_path.stem
-        # find matching category
-        cat_key = None
-        for k in test_categories.keys():
-            if stem.startswith(k):
-                cat_key = k
-                break
+        label_path = val_lbl_dir / f"{img_path.stem}.txt"
+        has_ground_truth = label_path.exists() and label_path.stat().st_size > 0
 
         img = cv2.imread(str(img_path))
         if img is None:
             continue
 
+        total_images += 1
         detections, _ = detector.detect_frame(img)
         pothole_dets = [d for d in detections if d["class_name"] == "pothole"]
 
-        if cat_key:
-            cat_info = test_categories[cat_key]
-            cat_info["total"] += 1
-            if cat_info["type"] == "POSITIVE":
-                if len(pothole_dets) > 0:
-                    cat_info["detected"] += 1
-            else:
-                if len(pothole_dets) > 0:
-                    cat_info["false_positives"] += 1
+        if has_ground_truth:
+            images_with_ground_truth_pothole += 1
+            if len(pothole_dets) > 0:
+                correctly_detected += 1
+        else:
+            images_with_no_ground_truth += 1
+            if len(pothole_dets) > 0:
+                false_positives_on_clean_images += 1
 
         detailed_results.append({
             "image": img_path.name,
-            "category": cat_key or "other",
+            "has_ground_truth": has_ground_truth,
             "detections_count": len(pothole_dets),
             "max_conf": max([d["confidence"] for d in pothole_dets]) if pothole_dets else 0.0
         })
 
-    print(f"\n{'Category':<24} | {'Type':<8} | {'Total':<6} | {'Passed':<8} | {'Status'}")
+    print(f"\n{'='*70}")
+    print(f"  Total Validation Images:          {total_images}")
+    print(f"  Images WITH labeled pothole(s):    {images_with_ground_truth_pothole}")
+    print(f"  Images with NO pothole (clean):     {images_with_no_ground_truth}")
     print("-" * 70)
 
-    total_positive = 0
-    detected_positive = 0
-    total_negative = 0
-    clean_negative = 0
+    pos_recall = (correctly_detected / images_with_ground_truth_pothole * 100) if images_with_ground_truth_pothole > 0 else 0
+    neg_specificity = (
+        (images_with_no_ground_truth - false_positives_on_clean_images) / images_with_no_ground_truth * 100
+    ) if images_with_no_ground_truth > 0 else 100
 
-    for cat_name, stats in test_categories.items():
-        if stats["type"] == "POSITIVE":
-            total_positive += stats["total"]
-            detected_positive += stats["detected"]
-            rate = (stats["detected"] / stats["total"] * 100) if stats["total"] > 0 else 100
-            status = "PASSED" if rate >= 80 else "ACCEPTABLE"
-            print(f"{cat_name:<24} | {stats['type']:<8} | {stats['total']:<6} | {stats['detected']}/{stats['total']:<6} | [ {status} ] ({rate:.1f}%)")
-        else:
-            total_negative += stats["total"]
-            fp = stats["false_positives"]
-            passed = stats["total"] - fp
-            clean_negative += passed
-            status = "PASSED (0 FP)" if fp == 0 else f"WARN ({fp} FP)"
-            print(f"{cat_name:<24} | {stats['type']:<8} | {stats['total']:<6} | {passed}/{stats['total']:<6} | [ {status} ]")
-
-    print("=" * 70)
-    pos_recall = (detected_positive / total_positive * 100) if total_positive > 0 else 0
-    neg_specificity = (clean_negative / total_negative * 100) if total_negative > 0 else 100
-    print(f"  Overall Pothole Recall (Positive Classes):  {pos_recall:.1f}% ({detected_positive}/{total_positive})")
-    print(f"  False Positive Rejection (Negative Classes): {neg_specificity:.1f}% ({clean_negative}/{total_negative})")
+    print(f"  Detection Recall (found a real pothole):     {pos_recall:.1f}% ({correctly_detected}/{images_with_ground_truth_pothole})")
+    print(f"  False Positive Rejection (clean images):     {neg_specificity:.1f}% ({images_with_no_ground_truth - false_positives_on_clean_images}/{images_with_no_ground_truth})")
     print("=" * 70 + "\n")
 
     return {
