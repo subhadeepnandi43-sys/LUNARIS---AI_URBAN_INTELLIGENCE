@@ -81,17 +81,66 @@ class StreamProcessor:
 
     async def _process_loop(self):
         loop = asyncio.get_running_loop()
+
         def _open_cap():
             try:
-                c = cv2.VideoCapture(self.stream_url)
-                return c
-            except Exception:
+                import os
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+
+                c = cv2.VideoCapture(self.stream_url, cv2.CAP_FFMPEG)
+
+                if c.isOpened():
+                    ok, _ = c.read()
+
+                    if not ok:
+                        c.release()
+                        return None
+
+                    return c
+
+                return None
+
+            except Exception as e:
+                logger.warning(
+                    f"RTSP open failed for {self.stream_url}: {e}"
+                )
                 return None
 
         try:
-            cap = await asyncio.wait_for(loop.run_in_executor(None, _open_cap), timeout=1.5)
+            cap = await asyncio.wait_for(
+                loop.run_in_executor(None, _open_cap),
+                timeout=8.0
+            )
+
             use_synthetic = not (cap and cap.isOpened())
-        except Exception:
+
+            if use_synthetic:
+                logger.warning(
+                    f"Could not open real RTSP stream {self.stream_url} "
+                    f"— falling back to synthetic frame."
+                )
+            else:
+                logger.info(
+                    f"Connected to real RTSP stream: {self.stream_url}"
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"RTSP connection timed out/errored for "
+                f"{self.stream_url}: {e}"
+            )
+            cap = None
+            use_synthetic = True
+
+        try:
+            cap = await asyncio.wait_for(loop.run_in_executor(None, _open_cap), timeout=8.0)
+            use_synthetic = not (cap and cap.isOpened())
+            if use_synthetic:
+                logger.warning(f"Could not open real RTSP stream {self.stream_url} — falling back to synthetic frame.")
+            else:
+                logger.info(f"Connected to real RTSP stream: {self.stream_url}")
+        except Exception as e:
+            logger.warning(f"RTSP connection timed out/errored for {self.stream_url}: {e}")
             cap = None
             use_synthetic = True
 

@@ -5,7 +5,7 @@ import logging
 import cv2
 import httpx
 from datetime import datetime
-from yolo_engine import RoadYOLODetector
+from yolo_engine import RoadYOLODetector     
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] [AI Worker]: %(message)s")
 logger = logging.getLogger("lunaris.ai_worker")
 

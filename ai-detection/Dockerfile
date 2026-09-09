@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ai_worker/requirements.txt requirements.txt
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ai_worker /app/ai_worker
+COPY . /app
 
-CMD ["python", "-m", "ai_worker.detector"]
+EXPOSE 8001
+
+CMD ["python", "main.py"]
