@@ -31,4 +31,6 @@ Thumbs.db
 runs/
 ai-detection/runs/
 ai-detection/pothole_dataset/
+*.tmp
+*.zip
 

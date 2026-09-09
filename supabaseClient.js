@@ -354,3 +354,116 @@ function subscribeSupabaseRealtime(onIncidentChange, onBusChange, onAlertChange)
 
   return channel;
 }
+
+/**
+ * Register & Store a New Bus and Camera Node Permanently in Supabase
+ */
+async function registerSupabaseCamera(cameraData) {
+  if (!supabaseClient) {
+    console.warn('[LUNARIS Supabase] Client not initialized, local storage active');
+    return { success: true, localOnly: true };
+  }
+
+  const results = { bus: null, camera: null, location: null, stream: null };
+
+  // 1. Upsert into public.buses
+  try {
+    const { data: busData, error: busError } = await supabaseClient
+      .from('buses')
+      .upsert([{
+        bus_code: cameraData.busId,
+        registration_number: cameraData.plate,
+        route_name: cameraData.route,
+        status: 'ACTIVE',
+        last_latitude: cameraData.lat,
+        last_longitude: cameraData.lng,
+        last_seen_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'bus_code' })
+      .select();
+
+    if (busError) {
+      console.warn('[LUNARIS Supabase] buses upsert notice:', busError.message);
+    } else {
+      results.bus = busData;
+    }
+  } catch (e) {
+    console.warn('[LUNARIS Supabase] buses exception:', e.message);
+  }
+
+  // 2. Upsert into public.cameras
+  try {
+    const { data: camData, error: camError } = await supabaseClient
+      .from('cameras')
+      .upsert([{
+        camera_id: cameraData.camId,
+        bus_id: cameraData.busId,
+        model: cameraData.model || 'Sony IMX477 4K HDR Industrial',
+        mount_position: cameraData.mount || 'FRONT_WINDSHIELD',
+        resolution: cameraData.resolution || '3840x2160',
+        fps_capability: 60,
+        status: 'ONLINE',
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'camera_id' })
+      .select();
+
+    if (camError) {
+      console.warn('[LUNARIS Supabase] cameras upsert notice:', camError.message);
+    } else {
+      results.camera = camData;
+    }
+  } catch (e) {
+    console.warn('[LUNARIS Supabase] cameras exception:', e.message);
+  }
+
+  // 3. Insert into public.bus_locations
+  try {
+    const { data: locData, error: locError } = await supabaseClient
+      .from('bus_locations')
+      .insert([{
+        bus_id: cameraData.busId,
+        latitude: cameraData.lat,
+        longitude: cameraData.lng,
+        speed: cameraData.speed || 34.0,
+        heading: 90,
+        captured_at: new Date().toISOString()
+      }])
+      .select();
+
+    if (locError) {
+      console.warn('[LUNARIS Supabase] bus_locations notice:', locError.message);
+    } else {
+      results.location = locData;
+    }
+  } catch (e) {
+    console.warn('[LUNARIS Supabase] bus_locations exception:', e.message);
+  }
+
+  // 4. Upsert into public.camera_streams
+  try {
+    const { data: strData, error: strError } = await supabaseClient
+      .from('camera_streams')
+      .upsert([{
+        camera_id: cameraData.camId,
+        bus_id: cameraData.busId,
+        stream_path: `/live/${cameraData.busId.toLowerCase()}`,
+        rtsp_url: cameraData.streamUrl || `rtsp://edge-kol.lunaris.io/live/${cameraData.busId.toLowerCase()}`,
+        webrtc_url: `http://localhost:8889/live/${cameraData.busId.toLowerCase()}`,
+        hls_url: `http://localhost:8888/live/${cameraData.busId.toLowerCase()}/index.m3u8`,
+        active_status: 'STREAMING'
+      }], { onConflict: 'stream_path' })
+      .select();
+
+    if (strError) {
+      console.warn('[LUNARIS Supabase] camera_streams notice:', strError.message);
+    } else {
+      results.stream = strData;
+    }
+  } catch (e) {
+    console.warn('[LUNARIS Supabase] camera_streams exception:', e.message);
+  }
+
+  return { success: true, data: results };
+}
+
+window.registerSupabaseCamera = registerSupabaseCamera;
