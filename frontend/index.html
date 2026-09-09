@@ -1381,6 +1381,9 @@
               <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono" id="kpi-modal-badge">
                 LIVE METRIC
               </span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono" id="kpi-modal-role-scope">
+                HQ AUDIT VIEW
+              </span>
             </div>
             <p class="text-[11px] text-slate-400 mt-0.5 font-sans" id="kpi-modal-subtitle">
               Detailed records and telemetry breakdown
@@ -1391,6 +1394,11 @@
         <button onclick="closeKpiDrilldownModal()" class="p-1.5 rounded-lg bg-navy-800 text-slate-400 hover:text-white hover:bg-navy-750 transition" title="Close">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
+      </div>
+
+      <!-- Topic-Wise Filtering Tabs -->
+      <div id="kpi-modal-topic-tabs" class="flex items-center gap-2 mt-3.5 pb-2 border-b border-navy-800/80 overflow-x-auto custom-scrollbar font-mono text-[11px]">
+        <!-- Dynamic Topic Tabs Injected via app.js -->
       </div>
 
       <!-- Metric Records List Container -->
