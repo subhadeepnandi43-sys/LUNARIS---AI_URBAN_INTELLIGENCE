@@ -360,23 +360,25 @@
       event.preventDefault();
       const email = document.getElementById('input-email').value;
       const password = document.getElementById('input-password').value;
-      const fullName = document.getElementById('input-fullname')?.value || roleDetails[selectedRole].fullName;
+      const inputName = document.getElementById('input-fullname')?.value?.trim();
+      const defaultInfo = roleDetails[selectedRole] || roleDetails.admin;
+      const userFullName = (authMode === 'signup' && inputName) ? inputName : (defaultInfo.fullName || email.split('@')[0]);
 
       showToast(`Authenticating with Supabase (${selectedRole.toUpperCase()})...`);
 
       try {
         let authRes;
         if (authMode === 'signup') {
-          authRes = await supabaseSignUp(email, password, fullName, selectedRole);
+          authRes = await supabaseSignUp(email, password, userFullName, selectedRole);
         } else {
           authRes = await supabaseSignIn(email, password);
         }
 
         const profile = {
-          id: `usr_${Date.now()}`,
-          user_id: authRes?.user?.id || `uid_${Date.now()}`,
+          id: authRes?.profile?.id || `usr_${Date.now()}`,
+          user_id: authRes?.profile?.user_id || authRes?.user?.id || `uid_${Date.now()}`,
           email: email,
-          full_name: fullName,
+          full_name: authRes?.profile?.full_name || userFullName,
           role: selectedRole
         };
 
@@ -393,7 +395,7 @@
           id: `usr_${Date.now()}`,
           user_id: `uid_${Date.now()}`,
           email: email,
-          full_name: fullName,
+          full_name: userFullName,
           role: selectedRole
         };
         localStorage.setItem('lunaris_auth_profile', JSON.stringify(profile));

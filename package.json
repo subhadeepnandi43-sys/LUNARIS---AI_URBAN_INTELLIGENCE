@@ -4,7 +4,8 @@
   "description": "LUNARIS — AI Mobile Urban Intelligence Command Platform (SIH 2026 SIH26124)",
   "main": "supabaseClient.js",
   "scripts": {
-    "start": "python -m http.server 8080",
+    "dev": "node server.js",
+    "start": "node server.js",
     "backend": "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload",
     "ai:worker": "python -m ai_worker.detector",
     "docker:up": "docker compose up -d"
