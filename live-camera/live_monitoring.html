@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LUNARIS — Live Bus Fleet Camera Monitoring</title>
-  
+
   <!-- Tailwind CSS & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  
+
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabaseClient.js"></script>
@@ -38,32 +39,49 @@
   </script>
 
   <style>
-    body { background-color: #04070f; color: #e2e8f0; }
+    body {
+      background-color: #04070f;
+      color: #e2e8f0;
+    }
+
     .scanline {
       background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
       background-size: 100% 3px, 6px 100%;
     }
+
     @keyframes radar-sweep {
-      0% { transform: translateY(-100%); }
-      100% { transform: translateY(1000%); }
+      0% {
+        transform: translateY(-100%);
+      }
+
+      100% {
+        transform: translateY(1000%);
+      }
     }
+
     .radar-line {
       animation: radar-sweep 4s linear infinite;
     }
   </style>
 </head>
+
 <body class="min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
 
   <!-- TOP HEADER -->
-  <header class="p-3.5 bg-navy-900 border-b border-navy-800 shadow-xl flex flex-wrap items-center justify-between gap-3 font-mono">
+  <header
+    class="p-3.5 bg-navy-900 border-b border-navy-800 shadow-xl flex flex-wrap items-center justify-between gap-3 font-mono">
     <div class="flex items-center gap-3">
-      <a href="index.html" class="w-9 h-9 rounded-xl bg-navy-950 border border-navy-750 flex items-center justify-center text-cyan-400 hover:text-white transition shadow" title="Back to Command Center">
+      <a href="index.html"
+        class="w-9 h-9 rounded-xl bg-navy-950 border border-navy-750 flex items-center justify-center text-cyan-400 hover:text-white transition shadow"
+        title="Back to Command Center">
         <i data-lucide="arrow-left" class="w-4 h-4"></i>
       </a>
       <div>
         <h1 class="text-sm md:text-base font-black text-white flex items-center gap-2">
           LIVE CAMERA MONITORING
-          <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">EDGE AI</span>
+          <span
+            class="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">EDGE
+            AI</span>
         </h1>
         <p class="text-[11px] text-slate-400">Select any individual bus camera or monitor the entire fleet</p>
       </div>
@@ -71,11 +89,13 @@
 
     <!-- VIEW MODE SELECTOR: ALL CAMERAS vs SINGLE CAMERA -->
     <div class="flex items-center rounded-xl bg-navy-950 p-1 border border-navy-750 text-xs shadow-inner">
-      <button type="button" id="btn-view-grid" onclick="setCameraViewMode('grid')" class="px-3 py-1.5 rounded-lg bg-cyan-600 text-white font-bold flex items-center gap-1.5 shadow transition">
+      <button type="button" id="btn-view-grid" onclick="setCameraViewMode('grid')"
+        class="px-3 py-1.5 rounded-lg bg-cyan-600 text-white font-bold flex items-center gap-1.5 shadow transition">
         <i data-lucide="grid" class="w-3.5 h-3.5"></i>
         <span>ALL CAMERAS (GRID)</span>
       </button>
-      <button type="button" id="btn-view-single" onclick="setCameraViewMode('single')" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white font-bold flex items-center gap-1.5 transition">
+      <button type="button" id="btn-view-single" onclick="setCameraViewMode('single')"
+        class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white font-bold flex items-center gap-1.5 transition">
         <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
         <span>SINGLE CAMERA FOCUS</span>
       </button>
@@ -97,7 +117,7 @@
   <!-- VIEW 1: ALL FLEET CAMERAS GRID (4 BUSES + PHONE/WEBCAM)                   -->
   <!-- ========================================================================= -->
   <section id="grid-view-section" class="flex-1 p-4 md:p-6 max-w-[1700px] mx-auto w-full space-y-4">
-    
+
     <div class="flex items-center justify-between font-mono text-xs text-slate-400">
       <span>Showing <strong>4 Connected Bus Cameras</strong> in Kolkata Transit Network:</span>
       <span class="text-cyan-400 font-bold">Click any camera to zoom & inspect</span>
@@ -105,94 +125,121 @@
 
     <!-- 4-Camera Fleet Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono">
-      
+
       <!-- Card 1: BUS-07 (CAM-07) -->
-      <div class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
+      <div
+        class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
         <div class="p-3 bg-navy-850 border-b border-navy-800 flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <strong class="text-white">BUS-07 [CAM-07]</strong>
             <span class="text-slate-400 text-[11px]">&bull; Park Street Route</span>
           </div>
-          <span class="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded border border-red-500/30 font-bold">1 DEFECT FLAGGED</span>
+          <span class="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded border border-red-500/30 font-bold">1
+            DEFECT FLAGGED</span>
         </div>
-        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer" onclick="focusSingleBusCamera('BUS-07')">
+        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer"
+          onclick="focusSingleBusCamera('BUS-07')">
           <canvas id="grid-canvas-bus07" class="w-full h-full object-cover"></canvas>
-          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold">POTHOLE 98.4% [HIGH]</div>
-          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">34 km/h &bull; 22.5512° N, 88.3524° E</div>
+          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold">POTHOLE
+            98.4% [HIGH]</div>
+          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">34 km/h
+            &bull; 22.5512° N, 88.3524° E</div>
         </div>
         <div class="p-2.5 bg-navy-950 flex items-center justify-between text-xs">
           <span class="text-slate-400 text-[11px]">Forward Optical 4K Sensor</span>
-          <button onclick="focusSingleBusCamera('BUS-07')" class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
+          <button onclick="focusSingleBusCamera('BUS-07')"
+            class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
             <i data-lucide="maximize-2" class="w-3 h-3"></i> Focus CAM-07
           </button>
         </div>
       </div>
 
       <!-- Card 2: BUS-12 (CAM-12) -->
-      <div class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
+      <div
+        class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
         <div class="p-3 bg-navy-850 border-b border-navy-800 flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <strong class="text-white">BUS-12 [CAM-12]</strong>
             <span class="text-slate-400 text-[11px]">&bull; AJC Bose Road Route</span>
           </div>
-          <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">LANE CLEAR</span>
+          <span
+            class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">LANE
+            CLEAR</span>
         </div>
-        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer" onclick="focusSingleBusCamera('BUS-12')">
+        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer"
+          onclick="focusSingleBusCamera('BUS-12')">
           <canvas id="grid-canvas-bus12" class="w-full h-full object-cover"></canvas>
-          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold">LANE CLEAR (99.1%)</div>
-          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">28 km/h &bull; 22.5410° N, 88.3610° E</div>
+          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold">LANE
+            CLEAR (99.1%)</div>
+          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">28 km/h
+            &bull; 22.5410° N, 88.3610° E</div>
         </div>
         <div class="p-2.5 bg-navy-950 flex items-center justify-between text-xs">
           <span class="text-slate-400 text-[11px]">Forward Optical 4K Sensor</span>
-          <button onclick="focusSingleBusCamera('BUS-12')" class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
+          <button onclick="focusSingleBusCamera('BUS-12')"
+            class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
             <i data-lucide="maximize-2" class="w-3 h-3"></i> Focus CAM-12
           </button>
         </div>
       </div>
 
       <!-- Card 3: BUS-15 (CAM-15) -->
-      <div class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
+      <div
+        class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
         <div class="p-3 bg-navy-850 border-b border-navy-800 flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <strong class="text-white">BUS-15 [CAM-15]</strong>
             <span class="text-slate-400 text-[11px]">&bull; Esplanade Central Route</span>
           </div>
-          <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-bold">WATERLOGGING 91%</span>
+          <span
+            class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-bold">WATERLOGGING
+            91%</span>
         </div>
-        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer" onclick="focusSingleBusCamera('BUS-15')">
+        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer"
+          onclick="focusSingleBusCamera('BUS-15')">
           <canvas id="grid-canvas-bus15" class="w-full h-full object-cover"></canvas>
-          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold">WATERLOGGING 91%</div>
-          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">19 km/h &bull; 22.5626° N, 88.3510° E</div>
+          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold">
+            WATERLOGGING 91%</div>
+          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">19 km/h
+            &bull; 22.5626° N, 88.3510° E</div>
         </div>
         <div class="p-2.5 bg-navy-950 flex items-center justify-between text-xs">
           <span class="text-slate-400 text-[11px]">Forward Optical 4K Sensor</span>
-          <button onclick="focusSingleBusCamera('BUS-15')" class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
+          <button onclick="focusSingleBusCamera('BUS-15')"
+            class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
             <i data-lucide="maximize-2" class="w-3 h-3"></i> Focus CAM-15
           </button>
         </div>
       </div>
 
       <!-- Card 4: BUS-21 (CAM-21) -->
-      <div class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
+      <div
+        class="bg-navy-900 border border-navy-800 hover:border-cyan-500/50 rounded-2xl overflow-hidden shadow-xl group transition-all">
         <div class="p-3 bg-navy-850 border-b border-navy-800 flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <strong class="text-white">BUS-21 [CAM-21]</strong>
             <span class="text-slate-400 text-[11px]">&bull; Salt Lake Sector V Route</span>
           </div>
-          <span class="text-[10px] bg-blue-500/20 text-cyan-300 px-2 py-0.5 rounded border border-blue-500/30 font-bold">CORRIDOR SCAN</span>
+          <span
+            class="text-[10px] bg-blue-500/20 text-cyan-300 px-2 py-0.5 rounded border border-blue-500/30 font-bold">CORRIDOR
+            SCAN</span>
         </div>
-        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer" onclick="focusSingleBusCamera('BUS-21')">
+        <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden cursor-pointer"
+          onclick="focusSingleBusCamera('BUS-21')">
           <canvas id="grid-canvas-bus21" class="w-full h-full object-cover"></canvas>
-          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold">SALT LAKE CORRIDOR</div>
-          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">41 km/h &bull; 22.5800° N, 88.4300° E</div>
+          <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold">SALT LAKE
+            CORRIDOR</div>
+          <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-navy-950/80 text-cyan-300 text-[10px]">41 km/h
+            &bull; 22.5800° N, 88.4300° E</div>
         </div>
         <div class="p-2.5 bg-navy-950 flex items-center justify-between text-xs">
           <span class="text-slate-400 text-[11px]">Forward Optical 4K Sensor</span>
-          <button onclick="focusSingleBusCamera('BUS-21')" class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
+          <button onclick="focusSingleBusCamera('BUS-21')"
+            class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1">
             <i data-lucide="maximize-2" class="w-3 h-3"></i> Focus CAM-21
           </button>
         </div>
@@ -201,14 +248,17 @@
     </div>
 
     <!-- Extra Camera Inputs: Phone & Webcam -->
-    <div class="p-4 bg-navy-900 border border-navy-800 rounded-2xl flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
+    <div
+      class="p-4 bg-navy-900 border border-navy-800 rounded-2xl flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
       <div class="flex items-center gap-3">
         <span class="text-slate-300 font-bold">📱 Connect Smartphone or Laptop Webcam:</span>
-        <button onclick="focusSingleBusCamera('PHONE')" class="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 font-bold flex items-center gap-1.5">
+        <button onclick="focusSingleBusCamera('PHONE')"
+          class="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 font-bold flex items-center gap-1.5">
           <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
           <span>Use Phone Camera</span>
         </button>
-        <button onclick="focusSingleBusCamera('WEBCAM')" class="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 font-bold flex items-center gap-1.5">
+        <button onclick="focusSingleBusCamera('WEBCAM')"
+          class="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 font-bold flex items-center gap-1.5">
           <i data-lucide="camera" class="w-3.5 h-3.5"></i>
           <span>Use Laptop Webcam</span>
         </button>
@@ -221,37 +271,43 @@
   <!-- ========================================================================= -->
   <!-- VIEW 2: SINGLE CAMERA FOCUS VIEW (DEDICATED FULL SCREEN 4K HUD)           -->
   <!-- ========================================================================= -->
-  <section id="single-view-section" class="hidden flex-1 p-4 md:p-6 max-w-[1700px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-    
+  <section id="single-view-section"
+    class="hidden flex-1 p-4 md:p-6 max-w-[1700px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
     <!-- LEFT 8 COLS: FOCUSED 4K VIDEO CANVAS -->
     <div class="lg:col-span-8 flex flex-col space-y-4">
-      
+
       <!-- Video Container Card -->
       <div class="bg-navy-900 border border-navy-800 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col">
-        
+
         <!-- Video Header Selector Bar -->
-        <div class="p-3 bg-navy-850 border-b border-navy-800 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+        <div
+          class="p-3 bg-navy-850 border-b border-navy-800 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
           <div class="flex items-center gap-2">
             <span class="text-slate-400 font-semibold">Active Camera:</span>
             <!-- Camera Switcher Dropdown -->
-            <select id="single-camera-select" onchange="selectSingleCamera(this.value)" class="bg-navy-950 text-cyan-300 font-bold border border-cyan-500/40 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-cyan-400">
+            <select id="single-camera-select" onchange="selectSingleCamera(this.value)"
+              class="bg-navy-950 text-cyan-300 font-bold border border-cyan-500/40 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-cyan-400">
               <option value="BUS-07">🚌 BUS-07 [CAM-07] — Park Street Route</option>
               <option value="BUS-12">🚌 BUS-12 [CAM-12] — AJC Bose Road Route</option>
               <option value="BUS-15">🚌 BUS-15 [CAM-15] — Esplanade Central Route</option>
               <option value="BUS-21">🚌 BUS-21 [CAM-21] — Salt Lake Sector V Route</option>
               <option value="WEBCAM">📷 Real Laptop Webcam / USB Camera</option>
+              <option value="DEMO_VIDEO">🎥 AI Pothole
+                Video</option>
               <option value="PHONE">📱 Smartphone Mobile AI Camera</option>
             </select>
           </div>
 
-          <button onclick="setCameraViewMode('grid')" class="px-3 py-1 rounded-lg bg-navy-800 hover:bg-navy-750 text-slate-300 hover:text-white border border-navy-700 text-xs flex items-center gap-1 font-bold">
+          <button onclick="setCameraViewMode('grid')"
+            class="px-3 py-1 rounded-lg bg-navy-800 hover:bg-navy-750 text-slate-300 hover:text-white border border-navy-700 text-xs flex items-center gap-1 font-bold">
             <i data-lucide="grid" class="w-3.5 h-3.5"></i> Back to 4-Camera Grid
           </button>
         </div>
 
         <!-- Video Screen Viewport -->
         <div class="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
-          
+
           <!-- Real Webcam Video Element -->
           <video id="single-camera-video" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
 
@@ -260,10 +316,12 @@
 
           <!-- Scanline & Radar Overlay -->
           <div class="absolute inset-0 scanline pointer-events-none opacity-30"></div>
-          <div class="absolute inset-x-0 h-0.5 bg-cyan-400/80 shadow-[0_0_15px_#00e5ff] radar-line pointer-events-none"></div>
+          <div class="absolute inset-x-0 h-0.5 bg-cyan-400/80 shadow-[0_0_15px_#00e5ff] radar-line pointer-events-none">
+          </div>
 
           <!-- Top-Left HUD Badge -->
-          <div class="absolute top-4 left-4 bg-navy-950/90 backdrop-blur-md border border-navy-750 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-300 space-y-0.5">
+          <div
+            class="absolute top-4 left-4 bg-navy-950/90 backdrop-blur-md border border-navy-750 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-300 space-y-0.5">
             <div class="text-cyan-400 font-bold flex items-center gap-1.5">
               <i data-lucide="radio" class="w-3.5 h-3.5 text-cyan-400 animate-pulse"></i>
               <span id="single-source-label">BUS-07 [CAM-07]</span>
@@ -272,7 +330,8 @@
           </div>
 
           <!-- Top-Right GPS Readout -->
-          <div class="absolute top-4 right-4 bg-navy-950/90 backdrop-blur-md border border-navy-750 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-300 text-right">
+          <div
+            class="absolute top-4 right-4 bg-navy-950/90 backdrop-blur-md border border-navy-750 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-300 text-right">
             <div class="text-emerald-400 font-bold flex items-center justify-end gap-1">
               <i data-lucide="navigation" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span id="single-gps-coords">22.5512° N, 88.3524° E</span>
@@ -283,9 +342,11 @@
         </div>
 
         <!-- Video Control Bar -->
-        <div class="p-3.5 bg-navy-850 border-t border-navy-800 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+        <div
+          class="p-3.5 bg-navy-850 border-t border-navy-800 flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
           <div class="flex items-center gap-3">
-            <button onclick="captureAndDispatchSingleDefect()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:opacity-90 text-white font-bold flex items-center gap-2 shadow-lg shadow-red-500/20">
+            <button onclick="captureAndDispatchSingleDefect()"
+              class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:opacity-90 text-white font-bold flex items-center gap-2 shadow-lg shadow-red-500/20">
               <i data-lucide="camera" class="w-4 h-4"></i>
               <span>CAPTURE DEFECT EVIDENCE & DISPATCH</span>
             </button>
@@ -299,18 +360,19 @@
 
     <!-- RIGHT 4 COLS: LIVE DETECTION LOGS FOR FOCUSED CAMERA -->
     <div class="lg:col-span-4 space-y-4 font-mono">
-      
+
       <div class="bg-navy-900 border border-navy-800 rounded-2xl p-5 shadow-xl space-y-4">
         <div class="flex items-center justify-between pb-3 border-b border-navy-800">
           <div class="flex items-center gap-2">
             <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
             <h3 class="text-sm font-bold text-white uppercase tracking-wider">LIVE CAMERA DETECTIONS</h3>
           </div>
-          <span class="text-[10px] bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20 font-bold" id="single-detect-count">1 DEFECT RECORDED</span>
+          <span class="text-[10px] bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/20 font-bold"
+            id="single-detect-count">1 DEFECT RECORDED</span>
         </div>
 
         <div class="space-y-3 max-h-[500px] overflow-y-auto pr-1" id="single-detections-list">
-          
+
           <!-- Sample Detection Card -->
           <div class="bg-navy-950 p-3.5 rounded-xl border border-red-500/60 space-y-2">
             <div class="flex items-center justify-between">
@@ -413,8 +475,36 @@
         } catch (e) {
           showToast(`Webcam notice: ${e.message}`);
         }
-      } else if (val === 'PHONE') {
-        window.open('mobile_camera.html', '_blank');
+      } else if (val === 'DEMO_VIDEO') {
+
+        const demoVideoUrl = '../ai-detection/demo_output/bike_pothole_browser.mp4';
+
+        videoEl.srcObject = null;
+        videoEl.src = demoVideoUrl;
+        videoEl.muted = true;
+        videoEl.controls = true;
+        videoEl.loop = false;
+        videoEl.playsInline = true;
+
+        canvasEl.classList.add('hidden');
+        videoEl.classList.remove('hidden');
+
+        labelEl.innerText = '🎥 AI POTHole DETECTION — BIKE POV';
+        coordsEl.innerText = '22.5512° N, 88.3524° E';
+        speedEl.innerText = 'SPEED: 30 km/h • HEADING: 85° E';
+
+        videoEl.load();
+
+        videoEl.onloadedmetadata = () => {
+          videoEl.play().catch(() => { });
+        };
+
+        videoEl.onerror = () => {
+          showToast('❌ Demo video could not be loaded');
+        };
+
+        showToast('🎥 YOLO Pothole Detection Demo Started');
+
       } else {
         videoEl.classList.add('hidden');
         canvasEl.classList.remove('hidden');
@@ -446,7 +536,7 @@
           pos => {
             singleGpsCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           },
-          () => {},
+          () => { },
           { enableHighAccuracy: true, timeout: 10000 }
         );
       }
@@ -606,7 +696,7 @@
             priority: 'HIGH',
             read: false
           }]);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       showToast(`✅ ${incidentId} [POTHOLE 98.4%] Dispatched to Command HQ!`);
@@ -623,4 +713,5 @@
     }
   </script>
 </body>
+
 </html>
