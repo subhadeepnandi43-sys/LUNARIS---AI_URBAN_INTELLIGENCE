@@ -1,13 +1,16 @@
 {
   "name": "lunaris-urban-intelligence",
-  "version": "2.6.4",
-  "description": "LUNARIS — AI Mobile Urban Intelligence Command Platform (SIH 2026 SIH26124)",
+  "version": "2.7.0",
+  "description": "LUNARIS — AI Mobile Urban Intelligence Command Platform (SIH 2026 Problem SIH26124)",
   "main": "supabaseClient.js",
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
     "backend": "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload",
-    "ai:worker": "python -m ai_worker.detector",
+    "ai:worker": "python ai-detection/edge_worker.py --source demo --mode DEMO",
+    "ai:worker:live": "python ai-detection/edge_worker.py --source webcam --mode LIVE",
+    "demo": "python simulator/sih_demo_runner.py",
+    "test": "pytest tests/ -v",
     "docker:up": "docker compose up -d"
   },
   "dependencies": {

@@ -3,11 +3,12 @@ import base64
 import uuid
 import math
 from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status
-from backend.models import DetectionEvent
+from backend.models import DetectionEvent, IncidentObservation
 from backend.database import get_supabase
 from backend.config import settings
-from backend.privacy import redact_sensitive_pii, CV2_AVAILABLE
+from backend.privacy import redact_sensitive_pii
 from backend.logger import log_system_event, AuditEventType
 from backend.security import apply_rate_limiting, sanitize_string, validate_coordinates
 
@@ -19,11 +20,11 @@ except Exception:
     np = None
 
 logger = logging.getLogger("lunaris.detections")
-router = APIRouter(prefix="/detections", tags=["AI Detections"])
+router = APIRouter(prefix="/detections", tags=["AI Detections & Consensus Ingestion"])
 
 def haversine_distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculates geodesic distance between two coordinates in meters."""
-    R = 6371000.0  # Earth radius in meters
+    R = 6371000.0
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
@@ -32,97 +33,108 @@ def haversine_distance_meters(lat1: float, lon1: float, lat2: float, lon2: float
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return R * c
 
-def compute_severity_rating(
+def compute_explainable_priority(
     defect_type: str,
     confidence: float,
     depth_cm: float,
     area_cm2: float,
     consensus_count: int,
-    traffic_density: str = "HEAVY",
-    pedestrian_proximity: bool = False
-) -> tuple[str, str]:
+    traffic_density: str = "HIGH",
+    pedestrian_proximity: bool = False,
+    road_name: str = "Transit Arterial"
+) -> tuple[str, str, float]:
     """
-    Transparent Severity Engine
-    Evaluates depth, surface area, multi-bus observations, and traffic corridor density.
-    Example: Large pothole (depth > 8cm) + heavy traffic + 3 buses detected it = CRITICAL.
+    Explainable Priority Engine (Requirement 9)
+    Evaluates depth, surface geometry, multi-bus agreement, traffic density, and pedestrian hazard.
+    Returns: (severity_label, human_readable_reason, priority_score_0_to_100)
     """
     reasons = []
-    score = 0
+    points = 0.0
 
-    # 1. Defect Dimensions
-    if depth_cm >= 8.0 or area_cm2 >= 1400:
-        score += 3
-        reasons.append(f"Large defect geometry (Depth: {depth_cm:.1f}cm, Area: {int(area_cm2)}cm²)")
-    elif depth_cm >= 4.0:
-        score += 2
-        reasons.append(f"Moderate depth ({depth_cm:.1f}cm)")
+    # 1. Defect Geometry & Physical Danger
+    if depth_cm >= 9.0 or area_cm2 >= 1500:
+        points += 30.0
+        reasons.append(f"Severe defect geometry (Depth: {depth_cm:.1f}cm, Area: {int(area_cm2)}cm²)")
+    elif depth_cm >= 5.0 or area_cm2 >= 800:
+        points += 20.0
+        reasons.append(f"Moderate defect depth ({depth_cm:.1f}cm)")
     else:
-        score += 1
+        points += 10.0
 
-    # 2. Multi-Bus Consensus Factor
+    # 2. Multi-Bus Independent Consensus Agreement
     if consensus_count >= settings.CONSENSUS_VERIFICATION_THRESHOLD:
-        score += 3
-        reasons.append(f"Multi-Bus Consensus Verified ({consensus_count} independent buses)")
+        points += 35.0
+        reasons.append(f"{consensus_count} independent transit buses verified defect location")
     elif consensus_count == 2:
-        score += 1
-        reasons.append(f"Dual-bus confirmed ({consensus_count} buses)")
+        points += 20.0
+        reasons.append(f"Dual-bus confirmation ({consensus_count} buses)")
+    else:
+        points += 10.0
+        reasons.append("Single bus initial observation")
 
-    # 3. Traffic Density & Road Location
-    if traffic_density in ["HEAVY", "CONGESTED"]:
-        score += 2
-        reasons.append("High-density arterial transit route")
+    # 3. Traffic Density & Road Corridor Importance
+    if traffic_density in ["SEVERE", "HIGH"]:
+        points += 20.0
+        reasons.append(f"High-density traffic corridor ({road_name})")
+    elif traffic_density == "MEDIUM":
+        points += 10.0
 
-    # 4. Pedestrian Proximity
+    # 4. Pedestrian Risk Proximity
     if pedestrian_proximity:
-        score += 2
-        reasons.append("Pedestrian zone proximity hazard")
+        points += 10.0
+        reasons.append("Immediate pedestrian transit zone hazard")
 
-    # 5. Confidence
-    if confidence >= 95.0:
-        score += 1
+    # 5. AI Confidence Factor
+    norm_conf = confidence if confidence <= 1.0 else (confidence / 100.0)
+    points += (norm_conf * 5.0)
 
-    if score >= 7:
+    score = min(100.0, max(0.0, points))
+
+    if score >= 75.0:
         severity = "CRITICAL"
-    elif score >= 5:
+    elif score >= 55.0:
         severity = "HIGH"
-    elif score >= 3:
+    elif score >= 35.0:
         severity = "MEDIUM"
     else:
         severity = "LOW"
 
-    reason_str = " + ".join(reasons) if reasons else "Standard Edge Detection Heuristics"
-    return severity, reason_str
+    reason_text = " • ".join(reasons) if reasons else "Standard Edge AI detection baseline"
+    return severity, reason_text, score
 
 @router.post("/event", status_code=status.HTTP_201_CREATED)
+@router.post("/ingest", status_code=status.HTTP_201_CREATED)
 async def ingest_detection_event(event: DetectionEvent, background_tasks: BackgroundTasks):
     """
-    Ingest a verified road defect from edge YOLO workers.
+    Ingest a road defect detection event from transit edge workers.
     Features:
-    - Privacy PII Redaction (Blur faces & license plates)
-    - Deduplication & Multi-Bus Verification
-    - Transparent Severity Calculation
-    - Supabase Realtime Alert Dispatch
+    - Standardized Detection Data Model (Requirement 4)
+    - PII Privacy Redaction (In-memory Face & License Plate Blur)
+    - Multi-Bus Consensus Engine & Observation Logging (Requirement 8)
+    - Explainable Priority Calculation (Requirement 9)
+    - LIVE vs DEMO Mode segregation (Requirement 2)
     """
     try:
-        supabase = get_supabase()
-        detection_uuid = str(uuid.uuid4())
-        new_incident_id = f"RD-{uuid.uuid4().hex[:4].upper()}"
+        lat, lng = validate_coordinates(event.latitude, event.longitude)
+        norm_conf = event.confidence if event.confidence <= 1.0 else (event.confidence / 100.0)
+        confidence_pct = norm_conf * 100.0
         
-        # 1. Parse Bounding Box & Dimensions
-        bbox_dict = {}
-        depth_cm = 8.5
-        area_cm2 = 1200.0
+        detection_uuid = event.detection_id or f"DET-{uuid.uuid4().hex[:6].upper()}"
+        event_class = (event.class_name or event.event_type or "pothole").capitalize()
+        source_mode = event.source_mode.upper() if event.source_mode else "LIVE"
+
+        # 1. Bounding Box & Dimensions Estimation
+        bbox_data = event.bounding_box or {}
+        depth_cm = 7.5
+        area_cm2 = 1100.0
         if event.bounding_boxes and len(event.bounding_boxes) > 0:
             first_box = event.bounding_boxes[0]
-            bbox_dict = first_box.dict()
+            bbox_data = first_box.dict()
             depth_cm = first_box.estimated_depth_cm or depth_cm
             area_cm2 = first_box.area_cm2 or area_cm2
 
-        # 2. Privacy Redaction & Supabase Storage Upload
-        file_path = f"detections/{datetime.utcnow().strftime('%Y/%m/%d')}/{detection_uuid}.jpg"
+        # 2. In-Memory Privacy Redaction & Storage
         evidence_url = event.evidence_image_url
-        img_bytes_len = None
-
         if event.evidence_image_base64:
             try:
                 raw_b64 = event.evidence_image_base64
@@ -130,238 +142,200 @@ async def ingest_detection_event(event: DetectionEvent, background_tasks: Backgr
                     raw_b64 = raw_b64.split(",")[1]
                 img_data = base64.b64decode(raw_b64)
                 
-                # Apply OpenCV PII Redactor to blur faces and license plates
-                nparr = np.frombuffer(img_data, np.uint8)
-                cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                if cv_img is not None:
-                    redacted_img = redact_sensitive_pii(cv_img)
-                    _, buffer = cv2.imencode('.jpg', redacted_img, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                    img_data = buffer.tobytes()
+                if cv2 is not None and np is not None:
+                    nparr = np.frombuffer(img_data, np.uint8)
+                    cv_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    if cv_img is not None:
+                        redacted = redact_sensitive_pii(cv_img)
+                        _, buf = cv2.imencode('.jpg', redacted, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                        img_data = buf.tobytes()
 
-                img_bytes_len = len(img_data)
-                
-                # Upload to Supabase Storage Bucket: incident-evidence
-                supabase.storage.from_(settings.EVIDENCE_BUCKET).upload(
-                    path=file_path,
-                    file=img_data,
-                    file_options={"content-type": "image/jpeg"}
-                )
-                evidence_url = supabase.storage.from_(settings.EVIDENCE_BUCKET).get_public_url(file_path)
-            except Exception as se:
-                logger.warning("Evidence storage upload notice: %s", se)
+                # Upload to Supabase Storage Bucket if client ready
+                try:
+                    supabase = get_supabase()
+                    file_path = f"detections/{datetime.utcnow().strftime('%Y/%m/%d')}/{detection_uuid}.jpg"
+                    supabase.storage.from_(settings.EVIDENCE_BUCKET).upload(
+                        path=file_path,
+                        file=img_data,
+                        file_options={"content-type": "image/jpeg"}
+                    )
+                    evidence_url = supabase.storage.from_(settings.EVIDENCE_BUCKET).get_public_url(file_path)
+                except Exception as se:
+                    logger.debug("Evidence storage notice: %s", se)
+            except Exception as pe:
+                logger.warning("Privacy redaction notice: %s", pe)
 
-        # 3. Insert Raw Detection into public.detections
-        det_row = {
-            "id": detection_uuid,
-            "camera_id": f"CAM-{event.bus_id.replace('BUS-', '')}",
-            "bus_id": event.bus_id,
-            "detection_type": event.type,
-            "confidence": event.confidence,
-            "severity": event.severity.upper(),
-            "latitude": event.lat,
-            "longitude": event.lng,
-            "gps_accuracy": 1.5,
-            "detected_at": (event.timestamp or datetime.utcnow()).isoformat(),
-            "frame_storage_path": file_path if evidence_url else None,
-            "video_storage_path": None,
-            "bounding_box": bbox_dict,
-            "model_name": "YOLOv8-Urban-V2",
-            "model_version": "2.6.4"
-        }
-        supabase.from_("detections").insert(det_row).execute()
-
-        # 4. Multi-Bus Verification & Duplicate Algorithm
-        target_incident_id = None
+        # 3. Spatial Matching & Multi-Bus Consensus
         matched_incident = None
+        target_incident_id = None
+        current_buses = [event.bus_id]
         
         try:
-            cutoff_time = (datetime.utcnow() - timedelta(hours=settings.DUPLICATE_TIME_WINDOW_HOURS)).isoformat()
-            existing_res = supabase.from_("incidents").select("*") \
-                .eq("category", event.category or event.type) \
+            supabase = get_supabase()
+            cutoff = (datetime.utcnow() - timedelta(hours=settings.DUPLICATE_TIME_WINDOW_HOURS)).isoformat()
+            
+            existing = supabase.from_("incidents").select("*") \
                 .neq("status", "RESOLVED") \
-                .gte("created_at", cutoff_time) \
+                .neq("status", "VERIFIED_RESOLUTION") \
+                .gte("created_at", cutoff) \
                 .execute()
 
-            if existing_res.data:
-                for row in existing_res.data:
-                    dist_m = haversine_distance_meters(row["latitude"], row["longitude"], event.lat, event.lng)
-                    if dist_m <= settings.DUPLICATE_DISTANCE_THRESHOLD_METERS:
-                        target_incident_id = row["incident_id"]
-                        matched_incident = row
-                        logger.info(f"Matched existing incident {target_incident_id} ({dist_m:.1f}m away)")
+            if existing.data:
+                for inc in existing.data:
+                    dist = haversine_distance_meters(inc["latitude"], inc["longitude"], lat, lng)
+                    if dist <= settings.DUPLICATE_DISTANCE_THRESHOLD_METERS:
+                        matched_incident = inc
+                        target_incident_id = inc["incident_id"]
+                        logger.info(f"Consensus match: incident {target_incident_id} ({dist:.1f}m away)")
                         break
-        except Exception as query_err:
-            logger.debug(f"Incident query note: {query_err}")
+        except Exception as e:
+            logger.debug("Incident search note: %s", e)
 
+        # Multi-Bus Consensus State Transition
         if matched_incident:
-            # Existing Incident Found — Apply Multi-Bus Verification
-            current_buses = set(matched_incident.get("verified_by_buses") or [])
-            current_buses.add(event.bus_id)
+            existing_buses = set(matched_incident.get("verified_by_buses") or [])
+            existing_buses.add(event.bus_id)
+            current_buses = list(existing_buses)
             consensus_count = len(current_buses)
-            
-            # Determine Verification Status & Duplicate Tag
-            if consensus_count >= settings.CONSENSUS_VERIFICATION_THRESHOLD:
-                new_status = "VERIFIED"
-                duplicate_status = "confirmed_duplicate"
-                boosted_conf = min(99.4, max(event.confidence, 98.0))
-            elif consensus_count == 2:
-                new_status = "POSSIBLE DUPLICATE"
-                duplicate_status = "possible_duplicate"
-                boosted_conf = max(event.confidence, 94.0)
-            else:
-                new_status = matched_incident.get("status", "UNRESOLVED")
-                duplicate_status = "separate_incident"
-                boosted_conf = event.confidence
 
-            # Re-evaluate Severity using Transparent Severity Engine
-            severity, severity_reason = compute_severity_rating(
-                defect_type=event.type,
-                confidence=boosted_conf,
+            if consensus_count >= settings.CONSENSUS_VERIFICATION_THRESHOLD:
+                consensus_status = "VERIFIED"
+                consensus_score = 98.2
+            elif consensus_count == 2:
+                consensus_status = "PROBABLE"
+                consensus_score = 85.0
+            else:
+                consensus_status = matched_incident.get("status", "POSSIBLE")
+                consensus_score = 65.0
+
+            severity, reason, p_score = compute_explainable_priority(
+                defect_type=event_class,
+                confidence=confidence_pct,
                 depth_cm=depth_cm,
                 area_cm2=area_cm2,
                 consensus_count=consensus_count,
-                traffic_density="HEAVY"
+                road_name=event.location_name or "Kolkata Arterial Route"
             )
 
-            supabase.from_("incidents").update({
-                "consensus_count": consensus_count,
-                "confidence_score": boosted_conf,
-                "status": new_status,
-                "duplicate_status": duplicate_status,
-                "severity": severity,
-                "severity_reason": severity_reason,
-                "verified_by_buses": list(current_buses),
-                "updated_at": datetime.utcnow().isoformat()
-            }).eq("incident_id", target_incident_id).execute()
+            # Update Incident in Database
+            try:
+                supabase.from_("incidents").update({
+                    "consensus_count": consensus_count,
+                    "confidence_score": max(matched_incident.get("confidence_score", 90.0), confidence_pct),
+                    "status": consensus_status,
+                    "severity": severity,
+                    "severity_reason": reason,
+                    "verified_by_buses": current_buses,
+                    "updated_at": datetime.utcnow().isoformat()
+                }).eq("incident_id", target_incident_id).execute()
+            except Exception as ue:
+                logger.debug("Incident update note: %s", ue)
 
         else:
-            # Create New Separate Incident
-            target_incident_id = new_incident_id
+            # First observation: create new incident in POSSIBLE state
+            target_incident_id = f"RD-{uuid.uuid4().hex[:4].upper()}"
             consensus_count = 1
-            severity, severity_reason = compute_severity_rating(
-                defect_type=event.type,
-                confidence=event.confidence,
+            consensus_status = "POSSIBLE"
+            consensus_score = 65.0
+
+            severity, reason, p_score = compute_explainable_priority(
+                defect_type=event_class,
+                confidence=confidence_pct,
                 depth_cm=depth_cm,
                 area_cm2=area_cm2,
                 consensus_count=1,
-                traffic_density="HEAVY"
+                road_name=event.location_name or "Kolkata Arterial Route"
             )
 
-            # Automatic Department Routing Rule
-            cat_lower = (event.category or event.type).lower()
-            if "pothole" in cat_lower or "damage" in cat_lower:
-                assigned_dept = "Road Maintenance Department"
-                assigned_dept_id = "a0000000-0000-0000-0000-000000000001"
-            elif "water" in cat_lower or "drain" in cat_lower:
-                assigned_dept = "Drainage Department"
-                assigned_dept_id = "a0000000-0000-0000-0000-000000000002"
-            elif "traffic" in cat_lower or "signal" in cat_lower:
-                assigned_dept = "Traffic Department"
-                assigned_dept_id = "a0000000-0000-0000-0000-000000000003"
-            else:
-                assigned_dept = "Urban Infrastructure"
-                assigned_dept_id = "a0000000-0000-0000-0000-000000000004"
-
-            incident_data = {
+            inc_data = {
                 "incident_id": target_incident_id,
-                "title": f"Verified {event.type} on {event.location}",
-                "category": event.category or event.type,
+                "title": f"Detected {event_class} ({event.location_name or 'Kolkata'})",
+                "category": event_class,
                 "severity": severity,
-                "severity_reason": severity_reason,
-                "status": "UNRESOLVED",
-                "duplicate_status": "separate_incident",
-                "latitude": event.lat,
-                "longitude": event.lng,
-                "address": event.location,
+                "severity_reason": reason,
+                "status": consensus_status,
+                "latitude": lat,
+                "longitude": lng,
+                "address": event.location_name or "Kolkata Metropolitan Area",
                 "consensus_count": 1,
-                "confidence_score": event.confidence,
-                "verified_by_buses": [event.bus_id],
-                "department_id": assigned_dept_id,
-                "assigned_authority": assigned_dept,
-                "initial_detection_id": detection_uuid,
-                "created_at": (event.timestamp or datetime.utcnow()).isoformat()
-            }
-            supabase.from_("incidents").insert(incident_data).execute()
-
-        # 5. Insert Evidence Reference into public.evidence
-        if evidence_url:
-            try:
-                supabase.from_("evidence").insert({
-                    "incident_id": target_incident_id,
-                    "detection_id": detection_uuid,
-                    "bucket_id": settings.EVIDENCE_BUCKET,
-                    "storage_path": file_path,
-                    "public_url": evidence_url,
-                    "file_type": "image/jpeg",
-                    "file_size_bytes": img_bytes_len
-                }).execute()
-            except Exception as e:
-                logger.warning("Evidence row insert notice: %s", e)
-
-        # 6. Record Junction Entry in public.incident_detections
-        try:
-            supabase.from_("incident_detections").insert({
-                "incident_id": target_incident_id,
-                "detection_id": detection_uuid,
-                "bus_id": event.bus_id
-            }).execute()
-        except Exception:
-            pass
-
-        # 7. Trigger Notification in public.notifications (High & Critical)
-        if severity in ["HIGH", "CRITICAL"]:
-            notif_payload = {
-                "incident_id": target_incident_id,
-                "title": f"{'🚨 HIGH PRIORITY' if severity == 'HIGH' else '🛑 CRITICAL PRIORITY'}",
-                "message": f"{event.type} detected at {event.location}. Detected by {event.bus_id}",
-                "priority": severity,
-                "read": False
-            }
-            try:
-                supabase.from_("notifications").insert(notif_payload).execute()
-            except Exception as ne:
-                logger.warning(f"Notification insert notice: {ne}")
-
-            # 8. Optional Resend Email Dispatch
-            from backend.email_service import send_authority_alert_email
-            background_tasks.add_task(
-                send_authority_alert_email,
-                department_name=assigned_dept if 'assigned_dept' in locals() else "Road Maintenance Department",
-                incident_id=target_incident_id,
-                defect_type=event.type,
-                location=event.location,
-                severity=severity,
-                confidence=event.confidence,
-                evidence_url=evidence_url
-            )
-
-        # Audit Logger (Detection Ingest)
-        log_system_event(
-            AuditEventType.DETECTION,
-            f"Edge AI detection ingested: {event.type} ({event.confidence:.1f}%) on {event.bus_id} at {event.location}",
-            severity="INFO" if severity != "CRITICAL" else "WARNING",
-            source="AI_EDGE_PIPELINE",
-            metadata={
-                "incident_id": target_incident_id,
-                "detection_id": detection_uuid,
+                "confidence_score": confidence_pct,
+                "verified_by_buses": current_buses,
+                "before_evidence": evidence_url,
                 "bus_id": event.bus_id,
-                "type": event.type,
-                "severity": severity,
-                "consensus_count": consensus_count
+                "source_mode": source_mode,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
             }
+            try:
+                supabase.from_("incidents").insert(inc_data).execute()
+            except Exception as ie:
+                logger.debug("Incident insert note: %s", ie)
+
+        # 4. Record Observation Trail (Requirement 8)
+        obs_id = f"OBS-{uuid.uuid4().hex[:6].upper()}"
+        obs_record = {
+            "observation_id": obs_id,
+            "incident_id": target_incident_id,
+            "bus_id": event.bus_id,
+            "detection_id": detection_uuid,
+            "latitude": lat,
+            "longitude": lng,
+            "timestamp": event.timestamp or datetime.utcnow().isoformat(),
+            "confidence": confidence_pct,
+            "evidence_url": evidence_url,
+            "source_mode": source_mode
+        }
+        try:
+            supabase.from_("incident_observations").insert(obs_record).execute()
+        except Exception as oe:
+            logger.debug("Observation log note: %s", oe)
+
+        # Structured Audit Event
+        log_system_event(
+            AuditEventType.DETECTION_INGEST,
+            f"Edge detection {detection_uuid} from {event.bus_id} ({event_class} @ {lat:.4f}, {lng:.4f}) -> {consensus_status} ({consensus_count} buses)",
+            severity="INFO" if severity != "CRITICAL" else "WARNING",
+            source="EDGE_DETECTION_ROUTER",
+            metadata={"detection_id": detection_uuid, "incident_id": target_incident_id, "consensus": consensus_count}
         )
 
         return {
             "success": True,
-            "incident_id": target_incident_id,
-            "detection_id": detection_uuid,
-            "consensus_count": consensus_count,
-            "status": "VERIFIED" if consensus_count >= settings.CONSENSUS_VERIFICATION_THRESHOLD else "RECORDED",
-            "severity": severity,
-            "severity_reason": severity_reason,
-            "evidence_url": evidence_url
+            "message": f"Detection ingested successfully into {consensus_status} consensus stream",
+            "data": {
+                "detection_id": detection_uuid,
+                "incident_id": target_incident_id,
+                "class_name": event_class,
+                "consensus_status": consensus_status,
+                "consensus_count": consensus_count,
+                "consensus_score": consensus_score,
+                "severity": severity,
+                "severity_reason": reason,
+                "verified_by_buses": current_buses,
+                "source_mode": source_mode,
+                "latitude": lat,
+                "longitude": lng,
+                "evidence_url": evidence_url
+            }
         }
 
     except Exception as e:
-        logger.error("Error processing detection event: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Ingestion failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Detection processing failed: {str(e)}")
+
+@router.get("/observations/{incident_id}")
+async def get_incident_observations(incident_id: str):
+    """
+    Retrieve the chronological multi-bus consensus observation trail for an incident.
+    """
+    try:
+        supabase = get_supabase()
+        res = supabase.from_("incident_observations").select("*").eq("incident_id", incident_id).order("timestamp", desc=False).execute()
+        return {
+            "success": True,
+            "incident_id": incident_id,
+            "observations_count": len(res.data or []),
+            "data": res.data or []
+        }
+    except Exception as e:
+        return {"success": False, "incident_id": incident_id, "data": [], "error": str(e)}

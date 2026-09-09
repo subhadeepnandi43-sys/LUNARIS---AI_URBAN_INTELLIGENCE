@@ -231,13 +231,28 @@
           </div>
         </div>
 
-        <!-- Right: Monsoon Predictive AI, Audio Toggle, Notifications, Admin Profile -->
-        <div class="flex items-center gap-2.5 sm:gap-3.5">
+        <!-- Right: System Mode, SIH Demo, Monsoon Predictive AI, Audio Toggle, Notifications, Admin Profile -->
+        <div class="flex items-center gap-2 sm:gap-3">
           
+          <!-- System Operating Mode Toggle (LIVE vs DEMO) -->
+          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-navy-950 border border-navy-800 text-xs font-mono shadow-inner">
+            <span class="text-slate-400 text-[10px] hidden xl:inline">MODE:</span>
+            <button id="system-mode-btn" onclick="toggleSystemOperatingMode()" class="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:brightness-125" title="Click to toggle between LIVE sensing and DEMO simulation">
+              <span id="system-mode-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span id="system-mode-label">DEMO (SIMULATED)</span>
+            </button>
+          </div>
+
+          <!-- ⚡ SIH 2026 Autonomous Live Demo Trigger -->
+          <button type="button" id="btn-sih-demo" onclick="triggerSIHLiveDemoSequence()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-mono text-xs font-black transition shadow-lg shadow-amber-500/25 border border-amber-400/50 active:scale-95" title="Execute Autonomous 6-Stage Multi-Bus Consensus & Work Order Demo">
+            <i data-lucide="zap" class="w-4 h-4 text-yellow-100 fill-yellow-200"></i>
+            <span>⚡ SIH LIVE DEMO</span>
+          </button>
+
           <!-- 🌧️ Monsoon Predictive AI Forecaster -->
-          <button type="button" onclick="openMonsoonForecasterModal()" class="hidden xl:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-950 border border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-400 font-mono text-xs font-bold transition shadow-sm" title="Predictive Road Degradation & Monsoon Vulnerability AI">
+          <button type="button" onclick="openMonsoonForecasterModal()" class="hidden 2xl:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-950 border border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-400 font-mono text-xs font-bold transition shadow-sm" title="Predictive Road Degradation & Monsoon Vulnerability AI">
             <i data-lucide="cloud-rain" class="w-4 h-4 text-cyan-400"></i>
-            <span>🌧️ MONSOON FORECASTER</span>
+            <span>🌧️ MONSOON</span>
           </button>
 
           <!-- Audio Alert Toggle -->
@@ -1421,6 +1436,14 @@
         <div id="modal-inc-bus-passes-list" class="space-y-2 text-xs">
           <!-- Injected via app.js -->
         </div>
+
+        <!-- Interactive Next-Bus Simulation Trigger -->
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-navy-800/80">
+          <span class="text-[10px] text-slate-400 font-mono">Consensus: Cluster &le; 25m &bull; Buses &ge; 3 &bull; AI &ge; 85%</span>
+          <button onclick="simulateNextBusObservation(currentActiveIncidentId)" class="px-2.5 py-1 rounded-lg bg-cyan-600/30 hover:bg-cyan-600/60 text-cyan-300 border border-cyan-500/50 text-[10px] font-bold font-mono transition flex items-center gap-1 shadow cursor-pointer">
+            <i data-lucide="plus-circle" class="w-3 h-3"></i> + Simulate Next Bus Pass
+          </button>
+        </div>
       </div>
 
       <!-- Action Footer -->
@@ -1437,10 +1460,22 @@
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
+          <!-- Lifecycle Button: Dispatch / Accept / Complete -->
+          <button id="modal-inc-lifecycle-btn" onclick="handleWorkOrderLifecycleAction(currentActiveIncidentId)" class="px-3 py-2 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 font-bold transition flex items-center gap-1.5 shadow" title="Progress Work Order Lifecycle">
+            <i data-lucide="wrench" class="w-4 h-4 text-emerald-400"></i>
+            <span id="modal-inc-lifecycle-label">Work Order Lifecycle</span>
+          </button>
+
+          <!-- Automatic Bus Re-Scan Verification -->
+          <button id="modal-inc-rescan-btn" onclick="handleBusReScanVerification(currentActiveIncidentId)" class="px-3 py-2 rounded-lg bg-purple-600/25 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 font-bold transition flex items-center gap-1.5 shadow" title="Trigger Automated Bus Re-Scan Verification">
+            <i data-lucide="scan" class="w-4 h-4 text-purple-400"></i>
+            <span>Re-Scan Verify</span>
+          </button>
+
           <!-- Direct Report to Authority Action -->
           <button onclick="openOfficialAuthorityReportModal(currentActiveIncidentId)" class="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold transition flex items-center gap-1.5 shadow-lg shadow-cyan-950/40" title="File Official Verified Report to Real Location Authority (KMC / PWD / NHAI)">
             <i data-lucide="send" class="w-4 h-4 text-cyan-200"></i>
-            <span>Report to Authority</span>
+            <span>Report Authority</span>
           </button>
 
           <button onclick="openMunicipalWorkOrderPdfModal(currentActiveIncidentId)" class="px-3 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold transition flex items-center gap-1.5 shadow" title="Generate & Print Official Municipal Work Order">
@@ -2391,8 +2426,8 @@
   <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- App Logic Scripts -->
-  <script src="supabaseClient.js?v=14.0"></script>
-  <script src="app.js?v=14.0"></script>
+  <script src="supabaseClient.js?v=15.0"></script>
+  <script src="app.js?v=15.0"></script>
 
   <!-- Robust Fallback Click Dispatcher for Primary Actions & KPI Metric Cards -->
   <script>

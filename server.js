@@ -83,25 +83,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 3. AI Service Forwarding Proxy (/api/ai/* -> FastAPI http://127.0.0.1:8001)
-  if (reqPath.startsWith('/api/ai/')) {
-    const aiReq = http.request({
+  // 3. FastAPI Backend Forwarding Proxy (/api/v1/* and /api/ai/* -> FastAPI http://127.0.0.1:8000)
+  if (reqPath.startsWith('/api/v1/') || reqPath.startsWith('/api/ai/')) {
+    const backendPort = parseInt(process.env.BACKEND_PORT, 10) || 8000;
+    const backendReq = http.request({
       hostname: '127.0.0.1',
-      port: 8001,
+      port: backendPort,
       path: req.url,
       method: req.method,
-      headers: req.headers
-    }, (aiRes) => {
-      res.writeHead(aiRes.statusCode, aiRes.headers);
-      aiRes.pipe(res);
+      headers: {
+        ...req.headers,
+        host: `127.0.0.1:${backendPort}`
+      }
+    }, (backendRes) => {
+      res.writeHead(backendRes.statusCode, backendRes.headers);
+      backendRes.pipe(res);
     });
 
-    aiReq.on('error', (err) => {
+    backendReq.on('error', (err) => {
       res.writeHead(503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'AI Inference Service Offline', details: err.message }));
+      res.end(JSON.stringify({
+        error: 'FastAPI Backend Service Offline',
+        port: backendPort,
+        details: err.message,
+        hint: 'Start backend using npm run backend (uvicorn backend.main:app --port 8000)'
+      }));
     });
 
-    req.pipe(aiReq);
+    req.pipe(backendReq);
     return;
   }
 

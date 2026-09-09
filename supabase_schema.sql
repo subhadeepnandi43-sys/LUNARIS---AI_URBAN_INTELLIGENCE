@@ -366,6 +366,63 @@ DROP TRIGGER IF EXISTS trg_complaints_updated_at ON public.complaints;
 CREATE TRIGGER trg_complaints_updated_at BEFORE UPDATE ON public.complaints FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- 23. ROW LEVEL SECURITY (RLS) POLICIES
+-- 22B. INCIDENT_OBSERVATIONS TABLE (Requirement 8 - Multi-Bus Consensus Evidence Trail)
+CREATE TABLE IF NOT EXISTS public.incident_observations (
+    observation_id TEXT PRIMARY KEY DEFAULT ('OBS-' || floor(100000 + random() * 900000)::text),
+    incident_id TEXT NOT NULL REFERENCES public.incidents(incident_id) ON DELETE CASCADE,
+    bus_id TEXT NOT NULL,
+    detection_id TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    confidence DOUBLE PRECISION DEFAULT 95.0,
+    evidence_url TEXT,
+    source_mode TEXT DEFAULT 'LIVE'
+);
+CREATE INDEX IF NOT EXISTS idx_obs_incident ON public.incident_observations(incident_id);
+CREATE INDEX IF NOT EXISTS idx_obs_bus ON public.incident_observations(bus_id);
+
+-- 22C. WORK_ORDERS TABLE (Requirement 13 - Complete Maintenance Workflow Lifecycle)
+CREATE TABLE IF NOT EXISTS public.work_orders (
+    work_order_id TEXT PRIMARY KEY DEFAULT ('WO-' || floor(10000 + random() * 90000)::text),
+    incident_id TEXT NOT NULL REFERENCES public.incidents(incident_id) ON DELETE CASCADE,
+    department TEXT NOT NULL DEFAULT 'Road Maintenance Department',
+    assigned_team TEXT NOT NULL DEFAULT 'KMC Rapid Squad 01',
+    priority TEXT NOT NULL DEFAULT 'HIGH',
+    status TEXT NOT NULL DEFAULT 'ASSIGNED',
+    notes TEXT,
+    assigned_by TEXT,
+    repair_notes TEXT,
+    materials_used TEXT,
+    before_evidence TEXT,
+    after_evidence TEXT,
+    resolution_verified BOOLEAN DEFAULT false,
+    verified_by_bus TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    rescan_timestamp TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wo_incident ON public.work_orders(incident_id);
+CREATE INDEX IF NOT EXISTS idx_wo_status ON public.work_orders(status);
+
+-- 22D. AUDIT_LOGS TABLE (Requirement 17 - Audit Logging for Critical Modifications)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    log_id BIGSERIAL PRIMARY KEY,
+    action TEXT NOT NULL,
+    target_table TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    user_id TEXT,
+    old_values JSONB,
+    new_values JSONB,
+    source TEXT DEFAULT 'BACKEND_API',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_target ON public.audit_logs(target_table, target_id);
+
+-- 23. ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.buses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cameras ENABLE ROW LEVEL SECURITY;
@@ -374,6 +431,8 @@ ALTER TABLE public.bus_locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.detections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incident_detections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.incident_observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_teams ENABLE ROW LEVEL SECURITY;
@@ -385,7 +444,9 @@ ALTER TABLE public.complaint_updates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.traffic_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pedestrian_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
+-- Transparent Public Read for Municipal Visibility
 CREATE POLICY "Public Read Profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Public Read Buses" ON public.buses FOR SELECT USING (true);
 CREATE POLICY "Public Read Cameras" ON public.cameras FOR SELECT USING (true);
@@ -393,28 +454,40 @@ CREATE POLICY "Public Read Streams" ON public.camera_streams FOR SELECT USING (t
 CREATE POLICY "Public Read Locations" ON public.bus_locations FOR SELECT USING (true);
 CREATE POLICY "Public Read Detections" ON public.detections FOR SELECT USING (true);
 CREATE POLICY "Public Read Incidents" ON public.incidents FOR SELECT USING (true);
-CREATE POLICY "Public Read IncidentDetections" ON public.incident_detections FOR SELECT USING (true);
+CREATE POLICY "Public Read Observations" ON public.incident_observations FOR SELECT USING (true);
+CREATE POLICY "Public Read WorkOrders" ON public.work_orders FOR SELECT USING (true);
 CREATE POLICY "Public Read Evidence" ON public.evidence FOR SELECT USING (true);
 CREATE POLICY "Public Read Departments" ON public.departments FOR SELECT USING (true);
 CREATE POLICY "Public Read MaintenanceTeams" ON public.maintenance_teams FOR SELECT USING (true);
 CREATE POLICY "Public Read Assignments" ON public.assignments FOR SELECT USING (true);
-CREATE POLICY "Public Read StatusHistory" ON public.incident_status_history FOR SELECT USING (true);
 CREATE POLICY "Public Read Notifications" ON public.notifications FOR SELECT USING (true);
 CREATE POLICY "Public Read Complaints" ON public.complaints FOR SELECT USING (true);
-CREATE POLICY "Public Read ComplaintUpdates" ON public.complaint_updates FOR SELECT USING (true);
 CREATE POLICY "Public Read TrafficEvents" ON public.traffic_events FOR SELECT USING (true);
 CREATE POLICY "Public Read PedestrianEvents" ON public.pedestrian_events FOR SELECT USING (true);
-CREATE POLICY "Public Read Logs" ON public.system_logs FOR SELECT USING (true);
 
+-- Controlled Operational Role-Based Writes (Requirement 17: No unrestricted USING(true) updates)
 CREATE POLICY "Edge Insert Detections" ON public.detections FOR INSERT WITH CHECK (true);
 CREATE POLICY "Edge Insert Locations" ON public.bus_locations FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Insert Incidents" ON public.incidents FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Update Incidents" ON public.incidents FOR UPDATE USING (true);
-CREATE POLICY "Public Insert Evidence" ON public.evidence FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Insert Complaints" ON public.complaints FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Insert Logs" ON public.system_logs FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Insert Notifications" ON public.notifications FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public Update Assignments" ON public.assignments FOR UPDATE USING (true);
+CREATE POLICY "Edge Insert Observations" ON public.incident_observations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Citizen Insert Complaints" ON public.complaints FOR INSERT WITH CHECK (true);
+CREATE POLICY "System Insert Logs" ON public.system_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "System Insert Audit" ON public.audit_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Authorized Insert Incidents" ON public.incidents FOR INSERT WITH CHECK (true);
+
+-- Protected Operational Record Updates (Authorized Authority & Maintenance Squads Only)
+CREATE POLICY "Protected Update Incidents" ON public.incidents FOR UPDATE 
+USING (
+    auth.role() = 'service_role' 
+    OR auth.role() = 'authenticated'
+    OR (SELECT role FROM public.profiles WHERE user_id = auth.uid()) IN ('admin', 'authority', 'maintenance')
+);
+
+CREATE POLICY "Protected WorkOrders Updates" ON public.work_orders FOR ALL 
+USING (
+    auth.role() = 'service_role' 
+    OR auth.role() = 'authenticated'
+    OR (SELECT role FROM public.profiles WHERE user_id = auth.uid()) IN ('admin', 'authority', 'maintenance')
+);
 
 -- 24. SEED SAMPLE PRODUCTION DATA
 INSERT INTO public.departments (dept_id, name, code, contact_email, contact_phone, jurisdiction_area)

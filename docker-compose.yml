@@ -13,7 +13,7 @@ services:
       - "8189:8189/udp" # WebRTC UDP
       - "9997:9997"   # MediaMTX API
     volumes:
-      - ./mediamtx/mediamtx.yml:/mediamtx.yml
+      - ./live-camera/mediamtx.yml:/mediamtx.yml
 
   # 2. FastAPI Central Backend Server
   backend:
@@ -36,7 +36,7 @@ services:
   ai-worker:
     build:
       context: .
-      dockerfile: ai_worker/Dockerfile
+      dockerfile: ai-detection/Dockerfile
     container_name: lunaris-ai-worker
     restart: unless-stopped
     environment:
