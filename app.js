@@ -2614,13 +2614,18 @@ function updateUserProfileUI(profile) {
   const avatarEl = document.getElementById('user-avatar-initials');
   const dotEl = document.getElementById('user-online-dot');
 
+  const welcomeNameEl = document.getElementById('welcome-user-name');
+  const welcomeHeadingEl = document.getElementById('welcome-user-heading');
+  const welcomeSubtextEl = document.getElementById('welcome-user-subtext');
+
   if (profile) {
     const role = (profile.role || 'citizen').toLowerCase();
-    const initials = profile.full_name
-      ? profile.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    const displayName = profile.full_name || profile.name || profile.email || getRoleDefaultName(role);
+    const initials = displayName
+      ? displayName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
       : 'U';
 
-    if (nameEl) nameEl.innerText = profile.full_name || profile.email || 'User';
+    if (nameEl) nameEl.innerText = displayName;
     if (roleEl) {
       roleEl.innerText = getRoleLabel(role);
       roleEl.className = getRoleBadgeClass(role);
@@ -2630,17 +2635,29 @@ function updateUserProfileUI(profile) {
       dotEl.className = 'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-navy-900 animate-pulse';
     }
 
+    if (welcomeNameEl) {
+      welcomeNameEl.innerText = displayName;
+    } else if (welcomeHeadingEl) {
+      welcomeHeadingEl.innerHTML = `Welcome back, <span id="welcome-user-name">${displayName}</span> 👋`;
+    }
+
+    if (welcomeSubtextEl) {
+      welcomeSubtextEl.innerText = getRoleWelcomeSubtext(role);
+    }
+
     // Update modal details
     const mName = document.getElementById('auth-profile-name');
     const mEmail = document.getElementById('auth-profile-email');
     const mRole = document.getElementById('auth-profile-role');
+    const mRoleBadge = document.getElementById('auth-profile-role-badge');
     const mAvatar = document.getElementById('auth-profile-avatar');
     const mUid = document.getElementById('auth-profile-uid');
     const mDbId = document.getElementById('auth-profile-db-id');
 
-    if (mName) mName.innerText = profile.full_name || profile.email;
+    if (mName) mName.innerText = displayName;
     if (mEmail) mEmail.innerText = profile.email || 'user@kmcgov.in';
     if (mRole) mRole.innerText = getRoleLabel(role);
+    if (mRoleBadge) mRoleBadge.innerText = (role || 'USER').toUpperCase();
     if (mAvatar) mAvatar.innerText = initials;
     if (mUid) mUid.innerText = profile.user_id || 'auth_active';
     if (mDbId) mDbId.innerText = profile.id || 'Supabase_Synced';
@@ -2651,7 +2668,27 @@ function updateUserProfileUI(profile) {
       roleEl.className = 'text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded inline-block border border-emerald-500/30 uppercase';
     }
     if (avatarEl) avatarEl.innerText = 'GU';
+    if (welcomeNameEl) welcomeNameEl.innerText = 'Guest';
+    if (welcomeSubtextEl) welcomeSubtextEl.innerText = "Here's what's happening across Kolkata today.";
   }
+}
+
+function getRoleDefaultName(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'Palas Kumar Das';
+  if (r === 'authority') return 'Chief Engineer Anirban Roy';
+  if (r === 'rapid_squad') return 'Rapid Squad Leader K. Das';
+  if (r === 'citizen') return 'Citizen Observer';
+  return 'User';
+}
+
+function getRoleWelcomeSubtext(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return "HQ Command & Control active — Here's what's happening across Kolkata today.";
+  if (r === 'authority') return "PWD Infrastructure & Hazard Management Desk active for Kolkata.";
+  if (r === 'rapid_squad') return "Field Dispatch & Emergency Rapid Response Center active for Kolkata.";
+  if (r === 'citizen') return "Public Urban Transparency & Incident Monitoring Overview for Kolkata.";
+  return "Here's what's happening across Kolkata today.";
 }
 
 function getRoleLabel(role) {
