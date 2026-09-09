@@ -315,7 +315,7 @@
 
           <!-- Primary Actions: Add Camera, Sync Cloud -->
           <div class="flex items-center flex-wrap gap-3 font-mono text-xs sm:text-sm">
-            <button onclick="openAddCameraModal()" class="flex items-center gap-2 px-4 py-2.5 bg-navy-850 hover:bg-navy-800 text-slate-200 hover:text-white rounded-xl font-bold border border-navy-750 transition active:scale-95 shadow-sm">
+            <button id="btn-add-camera" type="button" onclick="openAddCameraModal()" class="flex items-center gap-2 px-4 py-2.5 bg-navy-850 hover:bg-navy-800 text-slate-200 hover:text-white rounded-xl font-bold border border-navy-750 transition active:scale-95 shadow-sm cursor-pointer">
               <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i>
               <span>ADD CAMERA</span>
             </button>
@@ -1422,7 +1422,7 @@
   </div>
 
   <!-- Modal 5: Add Camera -->
-  <div id="add-camera-modal" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+  <div id="add-camera-modal" style="display: none; z-index: 99999;" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md items-center justify-center p-4 overflow-y-auto" onclick="if(event.target === this) closeAddCameraModal()">
     <div class="bg-navy-900 border border-navy-750 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-scaleUp my-8 font-mono text-xs">
       
       <!-- Modal Header -->
@@ -2247,12 +2247,23 @@
   <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- App Logic Scripts -->
-  <script src="supabaseClient.js?v=7.0"></script>
-  <script src="app.js?v=7.0"></script>
+  <script src="supabaseClient.js?v=10.0"></script>
+  <script src="app.js?v=10.0"></script>
 
-  <!-- Robust Fallback Click Dispatcher for KPI Metric Cards -->
+  <!-- Robust Fallback Click Dispatcher for KPI Metric Cards & Add Camera -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // Add Camera Direct Listener
+      const addCamBtn = document.getElementById('btn-add-camera');
+      if (addCamBtn) {
+        addCamBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (typeof window.openAddCameraModal === 'function') {
+            window.openAddCameraModal();
+          }
+        });
+      }
+
       const kpiCardBindings = [
         { id: 'kpi-card-total', type: 'TOTAL' },
         { id: 'kpi-card-critical', type: 'CRITICAL' },
@@ -2275,6 +2286,9 @@
       // Global keyboard shortcut: Escape to close modals
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          if (typeof window.closeAddCameraModal === 'function') {
+            window.closeAddCameraModal();
+          }
           if (typeof window.closeKpiDrilldownModal === 'function') {
             window.closeKpiDrilldownModal();
           }

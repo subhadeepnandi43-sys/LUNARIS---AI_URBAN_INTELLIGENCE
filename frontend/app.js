@@ -3321,8 +3321,15 @@ function startLiveBusMovementSimulation() {
 // ==========================================
 function openAddCameraModal() {
   const modal = document.getElementById('add-camera-modal');
-  if (!modal) return;
+  if (!modal) {
+    console.warn('[LUNARIS] #add-camera-modal element not found in DOM');
+    return;
+  }
   modal.classList.remove('hidden');
+  modal.style.setProperty('display', 'flex', 'important');
+  modal.style.setProperty('z-index', '99999', 'important');
+  modal.style.setProperty('visibility', 'visible', 'important');
+  modal.style.setProperty('opacity', '1', 'important');
 
   // Compute next suggested bus number
   const existingIds = (DashboardState.buses || []).map(b => b.id || b.bus_code || '');
@@ -3343,15 +3350,15 @@ function openAddCameraModal() {
   const opInput = document.getElementById('add-cam-operator');
   const statusBox = document.getElementById('cam-test-status');
 
-  if (busIdInput && !busIdInput.value) busIdInput.value = suggestedBusId;
-  if (camIdInput && !camIdInput.value) camIdInput.value = `CAM-${suggestedBusId}-FRONT`;
-  if (plateInput && !plateInput.value) plateInput.value = `WB-04-E-${Math.floor(1000 + Math.random() * 8999)}`;
-  if (routeInput && !routeInput.value) routeInput.value = 'Park Street → Gariahat Corridor';
-  if (locInput && !locInput.value) locInput.value = 'Park Street Corridor, Kolkata';
-  if (latInput && !latInput.value) latInput.value = '22.5512';
-  if (lngInput && !lngInput.value) lngInput.value = '88.3524';
-  if (urlInput && !urlInput.value) urlInput.value = `rtsp://localhost:8554/live/${suggestedBusId.toLowerCase()}`;
-  if (opInput && !opInput.value) opInput.value = 'Subhashish Mukherjee (Depot 4)';
+  if (busIdInput) busIdInput.value = suggestedBusId;
+  if (camIdInput) camIdInput.value = `CAM-${suggestedBusId}-FRONT`;
+  if (plateInput) plateInput.value = `WB-04-E-${Math.floor(1000 + Math.random() * 8999)}`;
+  if (routeInput) routeInput.value = 'Park Street → Gariahat Corridor';
+  if (locInput) locInput.value = 'Park Street Corridor, Kolkata';
+  if (latInput) latInput.value = '22.5512';
+  if (lngInput) lngInput.value = '88.3524';
+  if (urlInput) urlInput.value = `rtsp://localhost:8554/live/${suggestedBusId.toLowerCase()}`;
+  if (opInput) opInput.value = 'Subhashish Mukherjee (Depot 4)';
   if (statusBox) statusBox.classList.add('hidden');
 
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
@@ -3359,7 +3366,10 @@ function openAddCameraModal() {
 
 function closeAddCameraModal() {
   const modal = document.getElementById('add-camera-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.setProperty('display', 'none', 'important');
+  }
 }
 
 function syncCameraIdFromBusId(busId) {
@@ -5533,8 +5543,6 @@ window.useDeviceGpsForCamera = useDeviceGpsForCamera;
 window.syncCameraIdFromBusId = syncCameraIdFromBusId;
 window.handleProtocolChange = handleProtocolChange;
 window.testOpticalCameraHandshake = testOpticalCameraHandshake;
-
-
-
-
+window.openAddCameraModal = openAddCameraModal;
+window.closeAddCameraModal = closeAddCameraModal;
 
