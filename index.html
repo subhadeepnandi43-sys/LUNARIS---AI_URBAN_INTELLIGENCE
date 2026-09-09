@@ -182,14 +182,29 @@
         </nav>
       </div>
 
-      <!-- Bottom System Status Card -->
-      <div class="p-4 border-t border-navy-800/80 bg-navy-950/60">
-        <div class="bg-navy-900/90 rounded-xl p-3.5 border border-navy-800 flex items-center justify-between text-xs font-mono shadow-inner">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="text-slate-200 font-bold">SYSTEM</span>
+      <!-- Bottom Subsystem Status Matrix (Step 18) -->
+      <div class="p-3.5 border-t border-navy-800/80 bg-navy-950/80 space-y-1.5 font-mono text-[11px]">
+        <div class="flex items-center justify-between text-slate-400 pb-1 border-b border-navy-850">
+          <span class="font-bold text-[10px] tracking-wider text-slate-300">SUBSYSTEM STATUS</span>
+          <span id="subsystem-mode-tag" class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">DEMO</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 text-[10.5px]">
+          <div class="flex items-center justify-between p-1.5 rounded-lg bg-navy-900 border border-navy-850" title="Edge YOLOv8 Inference Node">
+            <span class="text-slate-400">AI WORKER</span>
+            <span id="status-ai-worker" class="text-emerald-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE</span>
           </div>
-          <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded font-bold border border-emerald-500/20">ONLINE 🟢</span>
+          <div class="flex items-center justify-between p-1.5 rounded-lg bg-navy-900 border border-navy-850" title="FastAPI Central REST Gateway (:8000)">
+            <span class="text-slate-400">BACKEND</span>
+            <span id="status-backend" class="text-emerald-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE</span>
+          </div>
+          <div class="flex items-center justify-between p-1.5 rounded-lg bg-navy-900 border border-navy-850" title="Supabase PostgreSQL & Realtime">
+            <span class="text-slate-400">DATABASE</span>
+            <span id="status-database" class="text-emerald-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE</span>
+          </div>
+          <div class="flex items-center justify-between p-1.5 rounded-lg bg-navy-900 border border-navy-850" title="Hardware RTK GPS / Simulated Transit Waypoints">
+            <span class="text-slate-400">GPS TELEM</span>
+            <span id="status-gps" class="text-cyan-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>ONLINE</span>
+          </div>
         </div>
       </div>
 

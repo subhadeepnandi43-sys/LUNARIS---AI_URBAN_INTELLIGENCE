@@ -5473,6 +5473,14 @@ function toggleSystemOperatingMode() {
   const btn = document.getElementById('system-mode-btn');
   const label = document.getElementById('system-mode-label');
   const dot = document.getElementById('system-mode-dot');
+  const modeTag = document.getElementById('subsystem-mode-tag');
+
+  if (modeTag) {
+    modeTag.innerText = systemOperatingMode;
+    modeTag.className = systemOperatingMode === 'LIVE'
+      ? 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+      : 'text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold';
+  }
 
   if (systemOperatingMode === 'LIVE') {
     if (btn) {
@@ -5482,14 +5490,27 @@ function toggleSystemOperatingMode() {
     if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
 
     showToast('🟢 LIVE OPERATING MODE ACTIVATED: Connected to FastAPI backend & Edge AI workers.');
+    
+    // Check backend health and sync real incidents
     fetch('/api/v1/health')
       .then(res => res.json())
       .then(data => {
-        showToast(`⚡ Backend Connected: ${data.service} (${data.status}).`);
+        showToast(`⚡ Backend Connected: ${data.service || 'LUNARIS API'} (${data.status || 'healthy'}).`);
       })
       .catch(() => {
         showToast('⚠️ FastAPI Backend offline on port 8000. Start using npm run backend.');
       });
+
+    fetch('/api/v1/incidents')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.incidents && data.incidents.length > 0) {
+          DashboardState.incidents = data.incidents;
+          updateDashboardUI();
+          showToast(`📡 Live Incidents loaded from central database: ${data.incidents.length} records.`);
+        }
+      })
+      .catch(() => {});
   } else {
     if (btn) {
       btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:brightness-125';
@@ -5497,6 +5518,8 @@ function toggleSystemOperatingMode() {
     if (label) label.innerText = 'DEMO (SIMULATED)';
     if (dot) dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
 
+    DashboardState.incidents = [...DEMO_MUNICIPAL_INCIDENTS];
+    updateDashboardUI();
     showToast('🟡 DEMO MODE ACTIVATED: Loaded realistic municipal transit fleet simulation.');
   }
 }

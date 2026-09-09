@@ -22,20 +22,13 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from store_and_forward import edge_queue
+from model_taxonomy import ROAD_DEFECT_CLASSES, TRAFFIC_CLASSES, calculate_congestion_level
+from gps_provider import get_gps_provider
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] [Edge AI]: %(message)s")
 logger = logging.getLogger("lunaris.ai.worker")
 
 BASE_DIR = Path(__file__).parent.resolve()
-
-# Kolkata Transit Waypoints for Simulated GPS
-DEMO_KOLKATA_ROUTES = [
-    {"loc": "Park Street near Park Hotel, Kolkata", "lat": 22.5512, "lng": 88.3524, "route": "Park Street → Esplanade"},
-    {"loc": "AJC Bose Road Crossing, Kolkata", "lat": 22.5415, "lng": 88.3578, "route": "AJC Bose Road → Sealdah"},
-    {"loc": "Esplanade Bus Terminus, Kolkata", "lat": 22.5645, "lng": 88.3518, "route": "Esplanade → Howrah"},
-    {"loc": "Camac Street Commercial Corridor, Kolkata", "lat": 22.5468, "lng": 88.3541, "route": "Camac Street → Exide"},
-    {"loc": "Sealdah Transit Station Approach, Kolkata", "lat": 22.5697, "lng": 88.3712, "route": "Sealdah → College Street"},
-]
 
 class LunarisEdgeWorker:
     def __init__(
@@ -43,7 +36,7 @@ class LunarisEdgeWorker:
         bus_id: str = "BUS-07",
         video_source: str = "demo", # 'webcam', 'rtsp', 'mp4', or 'demo'
         backend_url: str = "http://localhost:8000/api/v1",
-        confidence_threshold: float = 0.65,
+        confidence_threshold: float = 0.60,
         inference_fps: int = 10,
         source_mode: str = "LIVE"
     ):
@@ -57,8 +50,8 @@ class LunarisEdgeWorker:
         self.cap = None
         self.model = None
         self.is_running = False
-        self.waypoint_idx = 0
         self.last_sync_attempt = 0
+        self.gps_provider = get_gps_provider(self.source_mode)
 
         self._init_detector()
 
@@ -110,23 +103,12 @@ class LunarisEdgeWorker:
                 self.cap = None
 
     def get_current_telemetry(self) -> Dict[str, Any]:
-        """Obtain real or demo GPS telemetry."""
-        wp = DEMO_KOLKATA_ROUTES[self.waypoint_idx % len(DEMO_KOLKATA_ROUTES)]
-        self.waypoint_idx += 1
-        return {
-            "bus_id": self.bus_id,
-            "latitude": wp["lat"],
-            "longitude": wp["lng"],
-            "location_name": wp["loc"],
-            "route": wp["route"],
-            "speed": 34.2,
-            "source_mode": self.source_mode
-        }
+        """Obtain real hardware GPS or demo GPS telemetry."""
+        return self.gps_provider.read_telemetry(self.bus_id)
 
     def blur_sensitive_pii(self, frame: np.ndarray) -> np.ndarray:
         """In-memory Gaussian blur on detected faces and license plates."""
         try:
-            # Simple Haar cascade or box blurring for PII protection
             h, w = frame.shape[:2]
             # Lower third contains vehicle license plates in traffic
             plate_zone = frame[int(h * 0.65):h, int(w * 0.2):int(w * 0.8)]
@@ -137,12 +119,15 @@ class LunarisEdgeWorker:
             pass
         return frame
 
-    def process_single_frame(self, frame: np.ndarray) -> List[Dict[str, Any]]:
-        """Run YOLO inference and return structured defect objects."""
+    def process_single_frame(self, frame: np.ndarray) -> Dict[str, Any]:
+        """Run YOLO inference and return structured defect objects and traffic metrics."""
         if frame is None or frame.size == 0:
-            return []
+            return {"defects": [], "traffic": {"total_vehicles": 0, "class_counts": {}, "congestion_level": "LOW"}}
 
         defects = []
+        traffic_counts = {cls_name: 0 for cls_name in TRAFFIC_CLASSES}
+        total_vehicles = 0
+
         if self.model is not None:
             try:
                 results = self.model.predict(frame, conf=self.conf_threshold, verbose=False)
@@ -150,15 +135,15 @@ class LunarisEdgeWorker:
                     r = results[0]
                     for box in r.boxes:
                         cls_id = int(box.cls[0].item())
-                        cls_name = r.names.get(cls_id, "pothole")
+                        cls_name = r.names.get(cls_id, "pothole").lower()
                         conf = float(box.conf[0].item())
                         xyxy = box.xyxy[0].tolist()
 
-                        # Check if defect or traffic object
-                        is_defect = cls_name.lower() in ["pothole", "crack", "damage", "waterlogging"] or "pothole" in cls_name.lower()
-                        if is_defect or conf >= 0.70:
+                        # 1. Defect checks
+                        is_defect = cls_name in ROAD_DEFECT_CLASSES or "pothole" in cls_name
+                        if is_defect:
                             defects.append({
-                                "class_name": "Pothole" if is_defect else cls_name,
+                                "class_name": ROAD_DEFECT_CLASSES.get(cls_name, {}).get("label", "Pothole"),
                                 "confidence": conf,
                                 "bbox": {
                                     "x_min": xyxy[0] / frame.shape[1],
@@ -169,18 +154,37 @@ class LunarisEdgeWorker:
                                     "estimated_depth_cm": 8.5
                                 }
                             })
+                        # 2. Traffic vehicle checks
+                        if cls_name in traffic_counts:
+                            traffic_counts[cls_name] += 1
+                            total_vehicles += 1
             except Exception as e:
                 logger.debug(f"Inference notice: {e}")
 
-        # Fallback simulation if no defects found in model
-        if not defects and self.source_mode == "DEMO" and np.random.rand() > 0.7:
+        # In DEMO mode, provide realistic simulated occurrences if none detected
+        if not defects and self.source_mode == "DEMO" and np.random.rand() > 0.75:
             defects.append({
                 "class_name": "Pothole",
                 "confidence": 0.94,
                 "bbox": {"x_min": 0.35, "y_min": 0.65, "x_max": 0.65, "y_max": 0.90, "area_cm2": 1200.0, "estimated_depth_cm": 9.2}
             })
 
-        return defects
+        if total_vehicles == 0 and self.source_mode == "DEMO":
+            total_vehicles = int(np.random.randint(2, 7))
+            traffic_counts["car"] = max(1, total_vehicles - 2)
+            traffic_counts["bus"] = 1
+            traffic_counts["motorcycle"] = 1
+
+        congestion = calculate_congestion_level(total_vehicles)
+
+        return {
+            "defects": defects,
+            "traffic": {
+                "total_vehicles": total_vehicles,
+                "class_counts": traffic_counts,
+                "congestion_level": congestion
+            }
+        }
 
     def dispatch_detection_event(self, defect: Dict[str, Any], frame: np.ndarray):
         """Constructs standardized payload and dispatches with offline queue fallback."""
@@ -258,13 +262,15 @@ class LunarisEdgeWorker:
                     cv2.line(frame, (640, 360), (980, 720), (0, 255, 255), 4)
 
                 # 2. Run Inference
-                defects = self.process_single_frame(frame)
+                analysis = self.process_single_frame(frame)
+                defects = analysis.get("defects", [])
+                traffic_info = analysis.get("traffic", {})
 
-                # 3. Dispatch If Detected
+                # 3. Dispatch Defect If Detected
                 if defects:
                     self.dispatch_detection_event(defects[0], frame)
 
-                # 4. Periodically Flush Offline Queue
+                # 4. Periodically Flush Offline Queue & Sync Traffic
                 if (loop_start - self.last_sync_attempt) > 5.0:
                     edge_queue.sync_pending(self.backend_url)
                     self.last_sync_attempt = loop_start

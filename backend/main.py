@@ -13,7 +13,8 @@ from backend.routers import (
     traffic,
     pedestrian,
     consensus,
-    health
+    health,
+    notifications
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -36,7 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include All Modular Routers
+# 1. API v1 Prefixed Routers
 app.include_router(detections.router, prefix=settings.API_V1_PREFIX)
 app.include_router(fleet.router, prefix=settings.API_V1_PREFIX)
 app.include_router(incidents.router, prefix=settings.API_V1_PREFIX)
@@ -48,6 +49,21 @@ app.include_router(streams.router, prefix=settings.API_V1_PREFIX)
 app.include_router(complaints.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
+
+# 2. Root-Level Direct Aliases (matching SIH Step 7 specifications)
+# /health, /detections, /telemetry, /incidents, /consensus, /traffic, /complaints, /work-orders, /maintenance, /analytics, /notifications
+app.include_router(detections.router, prefix="/detections", tags=["Direct Detections"])
+app.include_router(fleet.router, prefix="/telemetry", tags=["Direct Telemetry"])
+app.include_router(incidents.router, prefix="/incidents", tags=["Direct Incidents"])
+app.include_router(maintenance.router, prefix="/maintenance", tags=["Direct Maintenance"])
+app.include_router(maintenance.router, prefix="/work-orders", tags=["Direct Work Orders"])
+app.include_router(consensus.router, prefix="/consensus", tags=["Direct Consensus"])
+app.include_router(traffic.router, prefix="/traffic", tags=["Direct Traffic"])
+app.include_router(complaints.router, prefix="/complaints", tags=["Direct Complaints"])
+app.include_router(analytics.router, prefix="/analytics", tags=["Direct Analytics"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Direct Notifications"])
+app.include_router(health.router, prefix="/health", tags=["Direct Health"])
 
 @app.get("/")
 def root():
@@ -57,16 +73,20 @@ def root():
         "mode": settings.SYSTEM_MODE,
         "status": "OPERATIONAL",
         "docs": "/docs",
-        "api_v1": settings.API_V1_PREFIX
-    }
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "system": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "mode": settings.SYSTEM_MODE
+        "api_v1": settings.API_V1_PREFIX,
+        "endpoints": [
+            "/health",
+            "/detections",
+            "/telemetry",
+            "/incidents",
+            "/consensus",
+            "/traffic",
+            "/complaints",
+            "/work-orders",
+            "/maintenance",
+            "/analytics",
+            "/notifications"
+        ]
     }
 
 if __name__ == "__main__":
