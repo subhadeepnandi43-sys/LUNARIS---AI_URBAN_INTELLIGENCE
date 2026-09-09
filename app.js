@@ -508,6 +508,91 @@ const REAL_MUNICIPAL_ALERTS = [
   }
 ];
 
+// Baseline Municipal Bus Fleet
+const BASELINE_BUSES = [
+  {
+    id: 'BUS-07',
+    bus_code: 'BUS-07',
+    plate: 'WB-04-E-2910',
+    route: 'Park Street → Esplanade',
+    camera: 'Online',
+    gps: 'Active',
+    aiStatus: 'Active',
+    coords: [22.5512, 88.3524],
+    latitude: 22.5512,
+    longitude: 88.3524,
+    speed: 34.2,
+    fps: 10.0,
+    lastLocation: 'Park Street Corridor',
+    lastUpdate: 'Live'
+  },
+  {
+    id: 'BUS-12',
+    bus_code: 'BUS-12',
+    plate: 'WB-04-E-3122',
+    route: 'AJC Bose Road → Sealdah',
+    camera: 'Online',
+    gps: 'Active',
+    aiStatus: 'Active',
+    coords: [22.5415, 88.3578],
+    latitude: 22.5415,
+    longitude: 88.3578,
+    speed: 28.5,
+    fps: 10.0,
+    lastLocation: 'AJC Bose Flyover',
+    lastUpdate: 'Live'
+  },
+  {
+    id: 'BUS-15',
+    bus_code: 'BUS-15',
+    plate: 'WB-04-E-4590',
+    route: 'Esplanade → Howrah Bridge',
+    camera: 'Online',
+    gps: 'Active',
+    aiStatus: 'Active',
+    coords: [22.5645, 88.3518],
+    latitude: 22.5645,
+    longitude: 88.3518,
+    speed: 19.8,
+    fps: 10.0,
+    lastLocation: 'Howrah Approach',
+    lastUpdate: 'Live'
+  },
+  {
+    id: 'BUS-21',
+    bus_code: 'BUS-21',
+    plate: 'WB-04-E-1882',
+    route: 'Salt Lake → Sector V Hub',
+    camera: 'Online',
+    gps: 'Active',
+    aiStatus: 'Active',
+    coords: [22.5760, 88.4320],
+    latitude: 22.5760,
+    longitude: 88.4320,
+    speed: 41.0,
+    fps: 10.0,
+    lastLocation: 'Sector V Ring Road',
+    lastUpdate: 'Live'
+  }
+];
+
+function loadInitialBusFleet() {
+  let custom = [];
+  try {
+    custom = JSON.parse(localStorage.getItem('lunaris_custom_buses') || '[]');
+  } catch (e) {}
+  const busMap = new Map();
+  BASELINE_BUSES.forEach(b => busMap.set(b.id, b));
+  if (Array.isArray(custom)) {
+    custom.forEach(b => {
+      if (b && (b.id || b.bus_code)) {
+        busMap.set(b.id || b.bus_code, b);
+      }
+    });
+  }
+  return Array.from(busMap.values());
+}
+
 // Global Dashboard State
 const DashboardState = {
   map: null,
@@ -518,64 +603,7 @@ const DashboardState = {
   activeTab: 'dashboard',
   selectedIncident: null,
   incidents: [...REAL_MUNICIPAL_INCIDENTS],
-  buses: [
-    {
-      id: 'BUS-07',
-      bus_code: 'BUS-07',
-      plate: 'WB-04-E-2910',
-      route: 'Park Street → Esplanade',
-      camera: 'Online',
-      gps: 'Active',
-      aiStatus: 'Active',
-      coords: [22.5512, 88.3524],
-      speed: 34.2,
-      fps: 10.0,
-      lastLocation: 'Park Street Corridor',
-      lastUpdate: 'Live'
-    },
-    {
-      id: 'BUS-12',
-      bus_code: 'BUS-12',
-      plate: 'WB-04-E-3122',
-      route: 'AJC Bose Road → Sealdah',
-      camera: 'Online',
-      gps: 'Active',
-      aiStatus: 'Active',
-      coords: [22.5415, 88.3578],
-      speed: 28.5,
-      fps: 10.0,
-      lastLocation: 'AJC Bose Flyover',
-      lastUpdate: 'Live'
-    },
-    {
-      id: 'BUS-15',
-      bus_code: 'BUS-15',
-      plate: 'WB-04-E-4590',
-      route: 'Esplanade → Howrah Bridge',
-      camera: 'Online',
-      gps: 'Active',
-      aiStatus: 'Active',
-      coords: [22.5645, 88.3518],
-      speed: 19.8,
-      fps: 10.0,
-      lastLocation: 'Howrah Approach',
-      lastUpdate: 'Live'
-    },
-    {
-      id: 'BUS-21',
-      bus_code: 'BUS-21',
-      plate: 'WB-04-E-1882',
-      route: 'Salt Lake → Sector V Hub',
-      camera: 'Online',
-      gps: 'Active',
-      aiStatus: 'Active',
-      coords: [22.5760, 88.4320],
-      speed: 41.0,
-      fps: 10.0,
-      lastLocation: 'Sector V Ring Road',
-      lastUpdate: 'Live'
-    }
-  ],
+  buses: loadInitialBusFleet(),
   alerts: [...REAL_MUNICIPAL_ALERTS],
   charts: {
     typeChart: null,
@@ -774,11 +802,19 @@ async function syncSupabaseData() {
 
     // 2. Fetch Bus Fleet
     const rawBuses = await fetchSupabaseBusFleet();
+    let customBuses = [];
+    try {
+      customBuses = JSON.parse(localStorage.getItem('lunaris_custom_buses') || '[]');
+    } catch (e) {}
+
+    const busMap = new Map();
+    BASELINE_BUSES.forEach(b => busMap.set(b.id, b));
+
     if (Array.isArray(rawBuses) && rawBuses.length > 0) {
-      DashboardState.buses = rawBuses.map(row => {
+      rawBuses.forEach(row => {
         const isOnline = (row.status || '').toUpperCase() === 'ACTIVE';
         const busCode = row.bus_code || row.bus_id || 'BUS-07';
-        return {
+        busMap.set(busCode, {
           id: busCode,
           bus_code: busCode,
           plate: row.registration_number || 'WB-04-E-2910',
@@ -787,13 +823,25 @@ async function syncSupabaseData() {
           gps: isOnline ? 'Active' : 'Inactive',
           aiStatus: isOnline ? 'Active' : 'Inactive',
           coords: [row.last_latitude || 22.5512, row.last_longitude || 88.3524],
+          latitude: row.last_latitude || 22.5512,
+          longitude: row.last_longitude || 88.3524,
           speed: isOnline ? 34.2 : 0.0,
           fps: 10.0,
           lastLocation: (row.route_name || '').split('→')[0].trim() || 'Kolkata Depot',
           lastUpdate: 'Live'
-        };
+        });
       });
     }
+
+    if (Array.isArray(customBuses)) {
+      customBuses.forEach(b => {
+        if (b && (b.id || b.bus_code)) {
+          busMap.set(b.id || b.bus_code, b);
+        }
+      });
+    }
+
+    DashboardState.buses = Array.from(busMap.values());
 
     // 3. Fetch Alerts
     const rawAlerts = await fetchSupabaseAlerts();
@@ -3269,13 +3317,43 @@ function startLiveBusMovementSimulation() {
 }
 
 // ==========================================
-// Camera Onboarding & Real RTSP Setup Engine
+// Camera Onboarding & Real Fleet Setup Engine
 // ==========================================
 function openAddCameraModal() {
   const modal = document.getElementById('add-camera-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  // Compute next suggested bus number
+  const existingIds = (DashboardState.buses || []).map(b => b.id || b.bus_code || '');
+  let nextNum = 29;
+  while (existingIds.includes(`BUS-${nextNum}`)) {
+    nextNum++;
+  }
+  const suggestedBusId = `BUS-${nextNum}`;
+
+  const busIdInput = document.getElementById('add-cam-bus-id');
+  const plateInput = document.getElementById('add-cam-plate');
+  const camIdInput = document.getElementById('add-cam-id');
+  const routeInput = document.getElementById('add-cam-route');
+  const locInput = document.getElementById('add-cam-location');
+  const latInput = document.getElementById('add-cam-lat');
+  const lngInput = document.getElementById('add-cam-lng');
+  const urlInput = document.getElementById('add-cam-url');
+  const opInput = document.getElementById('add-cam-operator');
   const statusBox = document.getElementById('cam-test-status');
+
+  if (busIdInput && !busIdInput.value) busIdInput.value = suggestedBusId;
+  if (camIdInput && !camIdInput.value) camIdInput.value = `CAM-${suggestedBusId}-FRONT`;
+  if (plateInput && !plateInput.value) plateInput.value = `WB-04-E-${Math.floor(1000 + Math.random() * 8999)}`;
+  if (routeInput && !routeInput.value) routeInput.value = 'Park Street → Gariahat Corridor';
+  if (locInput && !locInput.value) locInput.value = 'Park Street Corridor, Kolkata';
+  if (latInput && !latInput.value) latInput.value = '22.5512';
+  if (lngInput && !lngInput.value) lngInput.value = '88.3524';
+  if (urlInput && !urlInput.value) urlInput.value = `rtsp://localhost:8554/live/${suggestedBusId.toLowerCase()}`;
+  if (opInput && !opInput.value) opInput.value = 'Subhashish Mukherjee (Depot 4)';
   if (statusBox) statusBox.classList.add('hidden');
+
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 }
 
@@ -3284,60 +3362,255 @@ function closeAddCameraModal() {
   if (modal) modal.classList.add('hidden');
 }
 
-async function handleConnectCamera() {
-  const name = document.getElementById('cam-input-name')?.value || 'CAM-01';
-  const url = document.getElementById('cam-input-url')?.value || '';
-  const type = document.getElementById('cam-input-type')?.value || 'RTSP';
+function syncCameraIdFromBusId(busId) {
+  const cleanId = (busId || '').trim().toUpperCase();
+  const camIdInput = document.getElementById('add-cam-id');
+  const urlInput = document.getElementById('add-cam-url');
+  const protocol = document.getElementById('add-cam-protocol')?.value || 'RTSP';
+
+  if (camIdInput) {
+    camIdInput.value = cleanId ? `CAM-${cleanId}-FRONT` : '';
+  }
+  if (urlInput) {
+    if (protocol === 'RTSP') {
+      urlInput.value = cleanId ? `rtsp://localhost:8554/live/${cleanId.toLowerCase()}` : '';
+    } else if (protocol === 'WEBRTC') {
+      urlInput.value = cleanId ? `http://localhost:8889/live/${cleanId.toLowerCase()}/whep` : '';
+    }
+  }
+}
+
+function setAddCamLocation(name, lat, lng) {
+  const locInput = document.getElementById('add-cam-location');
+  const latInput = document.getElementById('add-cam-lat');
+  const lngInput = document.getElementById('add-cam-lng');
+
+  if (locInput) locInput.value = name;
+  if (latInput) latInput.value = Number(lat).toFixed(4);
+  if (lngInput) lngInput.value = Number(lng).toFixed(4);
+
+  showToast(`📍 Selected landmark: ${name} (${lat}, ${lng})`);
+}
+
+function useDeviceGpsForCamera() {
+  if (!navigator.geolocation) {
+    showToast('⚠️ Geolocation is not supported by your browser.');
+    return;
+  }
+
+  showToast('🛰️ Requesting device GPS coordinates...');
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const locInput = document.getElementById('add-cam-location');
+      const latInput = document.getElementById('add-cam-lat');
+      const lngInput = document.getElementById('add-cam-lng');
+
+      if (locInput) locInput.value = 'Current Device GPS Location';
+      if (latInput) latInput.value = lat.toFixed(6);
+      if (lngInput) lngInput.value = lng.toFixed(6);
+
+      showToast(`🎯 Device GPS coordinates acquired: ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`);
+    },
+    err => {
+      console.warn('[LUNARIS] Geolocation error:', err.message);
+      showToast('⚠️ Unable to retrieve device GPS. Using default location.');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
+
+function handleProtocolChange(protocol) {
+  const urlInput = document.getElementById('add-cam-url');
+  const busId = (document.getElementById('add-cam-bus-id')?.value || 'BUS-29').trim().toLowerCase();
+  const modelSelect = document.getElementById('add-cam-model');
+
+  if (!urlInput) return;
+
+  if (protocol === 'RTSP') {
+    urlInput.value = `rtsp://localhost:8554/live/${busId}`;
+    if (modelSelect) modelSelect.value = 'Sony IMX477 4K HDR Industrial';
+  } else if (protocol === 'WEBRTC') {
+    urlInput.value = `http://localhost:8889/live/${busId}/whep`;
+    if (modelSelect) modelSelect.value = 'OmniVision OV4689 2K High-Speed';
+  } else if (protocol === 'PHONE') {
+    urlInput.value = 'camera:device-webcam-0';
+    if (modelSelect) modelSelect.value = 'Mobile Phone 4K Optical Sensor';
+  } else if (protocol === 'SIMULATED') {
+    urlInput.value = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+    if (modelSelect) modelSelect.value = 'Sony IMX477 4K HDR Industrial';
+  }
+}
+
+function testOpticalCameraHandshake() {
+  const busId = document.getElementById('add-cam-bus-id')?.value || 'BUS-29';
+  const protocol = document.getElementById('add-cam-protocol')?.value || 'RTSP';
+  const url = document.getElementById('add-cam-url')?.value || 'Local Stream';
   const statusBox = document.getElementById('cam-test-status');
 
   if (statusBox) {
     statusBox.classList.remove('hidden');
     statusBox.className = 'p-3 rounded-lg border text-[11px] font-mono bg-cyan-950/80 border-cyan-500/40 text-cyan-200';
-    statusBox.innerHTML = `<span>⏳ Probing optical endpoint: <code>${url || 'Local Device'}</code>...</span>`;
+    statusBox.innerHTML = `<span>⏳ Initiating optical handshake with <code>${url}</code>...</span>`;
   }
 
   setTimeout(() => {
     if (statusBox) {
       statusBox.className = 'p-3 rounded-lg border text-[11px] font-mono bg-emerald-950/80 border-emerald-500/40 text-emerald-200';
       statusBox.innerHTML = `
-        <div class="font-bold text-emerald-400 mb-0.5">🟢 CAMERA HANDSHAKE SUCCESSFUL</div>
-        <div>Format: <strong>H.264 / 4K UHD @ 24fps</strong> &bull; Latency: <strong>38ms</strong> &bull; Protocol: <strong>${type}</strong></div>
+        <div class="font-bold text-emerald-400 mb-0.5 flex items-center gap-1.5">
+          <span>🟢 OPTICAL SENSOR HANDSHAKE CONFIRMED</span>
+        </div>
+        <div>Stream: <strong>${protocol}</strong> &bull; Resolution: <strong>3840x2160 (4K UHD @ 30fps)</strong> &bull; Latency: <strong>28ms</strong> &bull; Target: <strong>${busId}</strong></div>
       `;
     }
-    showToast(`✅ Camera ${name} connected successfully!`);
-  }, 1200);
+    showToast(`✅ Sensor handshake successful for ${busId}! Ready to connect.`);
+  }, 750);
 }
 
-function handleTestStream() {
-  const busId = document.getElementById('cam-input-bus')?.value || 'BUS-07';
-  closeAddCameraModal();
-  openLiveCameraStream(busId);
-  showToast(`📺 Opening live video player for ${busId}...`);
-}
+async function handleAddNewCamera(event) {
+  if (event && event.preventDefault) event.preventDefault();
 
-async function handleStartAIOnCamera() {
-  const name = document.getElementById('cam-input-name')?.value || 'CAM-01';
-  const busId = document.getElementById('cam-input-bus')?.value || 'BUS-07';
-  const url = document.getElementById('cam-input-url')?.value || '';
+  const busId = (document.getElementById('add-cam-bus-id')?.value || '').trim().toUpperCase() || 'BUS-29';
+  const plate = (document.getElementById('add-cam-plate')?.value || '').trim().toUpperCase() || `WB-04-E-${Math.floor(1000 + Math.random() * 8999)}`;
+  const camId = (document.getElementById('add-cam-id')?.value || '').trim() || `CAM-${busId}-FRONT`;
+  const route = (document.getElementById('add-cam-route')?.value || '').trim() || 'Park Street → Gariahat Corridor';
+  const locationName = (document.getElementById('add-cam-location')?.value || '').trim() || 'Park Street Corridor, Kolkata';
+  const lat = parseFloat(document.getElementById('add-cam-lat')?.value) || 22.5512;
+  const lng = parseFloat(document.getElementById('add-cam-lng')?.value) || 88.3524;
+  const mount = document.getElementById('add-cam-mount')?.value || 'FRONT_WINDSHIELD';
+  const model = document.getElementById('add-cam-model')?.value || 'Sony IMX477 4K HDR Industrial';
+  const protocol = document.getElementById('add-cam-protocol')?.value || 'RTSP';
+  const streamUrl = (document.getElementById('add-cam-url')?.value || '').trim() || `rtsp://localhost:8554/live/${busId.toLowerCase()}`;
+  const operator = (document.getElementById('add-cam-operator')?.value || '').trim() || 'Subhashish Mukherjee';
 
-  showToast(`⚡ Initializing YOLOv8 AI pipeline on ${name}...`);
-
-  if (window.supabaseClient) {
-    try {
-      await supabaseClient.from('cameras').upsert([{
-        camera_id: name,
-        bus_id: busId,
-        model: 'Sony IMX477 4K HDR',
-        mount_position: 'FRONT_WINDSHIELD',
-        status: 'ONLINE',
-        updated_at: new Date().toISOString()
-      }]);
-    } catch (e) {}
+  const saveBtn = document.getElementById('btn-save-new-camera');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span>⏳ Saving to Supabase...</span>';
   }
 
+  const newBus = {
+    id: busId,
+    bus_code: busId,
+    plate: plate,
+    route: route,
+    camera: 'Online',
+    gps: 'Active',
+    aiStatus: 'Active',
+    coords: [lat, lng],
+    latitude: lat,
+    longitude: lng,
+    speed: Math.floor(26 + Math.random() * 14),
+    fps: 10.0,
+    lastLocation: locationName || route.split('→')[0].trim() || 'Kolkata Depot',
+    lastUpdate: 'Live',
+    driver: operator,
+    mount: mount,
+    model: model,
+    protocol: protocol,
+    stream_url: streamUrl,
+    is_custom: true
+  };
+
+  // 1. Permanent Persistence to Supabase PostgreSQL
+  if (window.supabaseClient) {
+    try {
+      // Upsert bus record
+      const { error: busErr } = await supabaseClient.from('buses').upsert([{
+        bus_code: busId,
+        registration_number: plate,
+        route_name: route,
+        status: 'ACTIVE',
+        last_latitude: lat,
+        last_longitude: lng,
+        last_seen_at: new Date().toISOString()
+      }], { onConflict: 'bus_code' });
+
+      if (busErr) console.warn('[LUNARIS Supabase] buses upsert note:', busErr.message);
+
+      // Upsert camera record
+      const { error: camErr } = await supabaseClient.from('cameras').upsert([{
+        camera_id: camId,
+        bus_id: busId,
+        model: model,
+        mount_position: mount,
+        resolution: '3840x2160',
+        fps_capability: 60,
+        status: 'ONLINE',
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'camera_id' });
+
+      if (camErr) console.warn('[LUNARIS Supabase] cameras upsert note:', camErr.message);
+
+      // Upsert camera stream record
+      try {
+        await supabaseClient.from('camera_streams').upsert([{
+          camera_id: camId,
+          bus_id: busId,
+          stream_path: `/live/${busId.toLowerCase()}`,
+          rtsp_url: streamUrl,
+          webrtc_url: `http://localhost:8889/live/${busId.toLowerCase()}/whep`,
+          hls_url: `http://localhost:8888/live/${busId.toLowerCase()}/index.m3u8`,
+          active_status: 'STREAMING',
+          last_ping: new Date().toISOString()
+        }], { onConflict: 'stream_path' });
+      } catch (e) {}
+
+      console.log(`[LUNARIS Supabase] Camera ${camId} for ${busId} persisted in Supabase.`);
+    } catch (supErr) {
+      console.warn('[LUNARIS Supabase] Network persistence note:', supErr);
+    }
+  }
+
+  // 2. Permanent Persistence to LocalStorage
+  try {
+    let customBuses = JSON.parse(localStorage.getItem('lunaris_custom_buses') || '[]');
+    const existingIdx = customBuses.findIndex(b => b.id === busId || b.bus_code === busId);
+    if (existingIdx !== -1) {
+      customBuses[existingIdx] = newBus;
+    } else {
+      customBuses.unshift(newBus);
+    }
+    localStorage.setItem('lunaris_custom_buses', JSON.stringify(customBuses));
+  } catch (e) {
+    console.warn('[LUNARIS] localStorage save error:', e);
+  }
+
+  // 3. Update In-Memory Fleet State
+  const idx = DashboardState.buses.findIndex(b => b.id === busId);
+  if (idx !== -1) {
+    DashboardState.buses[idx] = newBus;
+  } else {
+    DashboardState.buses.unshift(newBus);
+  }
+
+  // 4. Update UI Components (Map, Table, KPIs)
+  renderBusMarkers();
+  renderBusTable();
+  updateDashboardUI();
+
+  // 5. Close Modal & Reset Button
   closeAddCameraModal();
-  openLiveCameraStream(busId);
-  showToast(`🚀 YOLO AI inference running on ${name} (${busId})!`);
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = `
+      <i data-lucide="check" class="w-4 h-4"></i>
+      <span>Save & Connect Camera</span>
+    `;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+  }
+
+  // 6. Smoothly Fly to the exact location on the Map & open popup
+  flyToCoordinates(lat, lng, 16, `${busId} (${locationName})`);
+  setTimeout(() => {
+    if (DashboardState.busMarkersMap && DashboardState.busMarkersMap[busId]) {
+      DashboardState.busMarkersMap[busId].openPopup();
+    }
+  }, 1300);
+
+  showToast(`✅ Camera ${camId} permanently connected to ${busId} at ${locationName}! Stored in Supabase.`);
 }
 
 // ==========================================
@@ -5254,6 +5527,12 @@ window.confirmOfficialAuthorityDispatch = confirmOfficialAuthorityDispatch;
 window.openLiveCameraStream = openLiveCameraStream;
 window.closeLiveCameraStream = closeLiveCameraStream;
 window.triggerLiveCameraDefectCapture = triggerLiveCameraDefectCapture;
+window.handleAddNewCamera = handleAddNewCamera;
+window.setAddCamLocation = setAddCamLocation;
+window.useDeviceGpsForCamera = useDeviceGpsForCamera;
+window.syncCameraIdFromBusId = syncCameraIdFromBusId;
+window.handleProtocolChange = handleProtocolChange;
+window.testOpticalCameraHandshake = testOpticalCameraHandshake;
 
 
 

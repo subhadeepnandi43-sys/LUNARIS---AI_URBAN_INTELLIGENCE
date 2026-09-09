@@ -1422,37 +1422,192 @@
   </div>
 
   <!-- Modal 5: Add Camera -->
-  <div id="add-camera-modal" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-navy-900 border border-navy-750 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-scaleUp">
-      <div class="flex items-center justify-between pb-3 border-b border-navy-800 mb-4 font-mono">
-        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-          <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i> REGISTER EDGE CAMERA
-        </h3>
-        <button onclick="closeAddCameraModal()" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-4 h-4"></i>
+  <div id="add-camera-modal" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-navy-900 border border-navy-750 rounded-2xl max-w-2xl w-full p-6 shadow-2xl animate-scaleUp my-8 font-mono text-xs">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3.5 border-b border-navy-800 mb-4">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center justify-center">
+              <i data-lucide="video" class="w-4 h-4"></i>
+            </span>
+            <span>CONNECT & REGISTER BUS CAMERA</span>
+          </h3>
+          <p class="text-[11px] text-slate-400 font-sans mt-0.5">
+            Add a transit bus optical sensor node. Pins directly to live map & syncs to Supabase.
+          </p>
+        </div>
+        <button type="button" onclick="closeAddCameraModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-navy-800 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-      <form onsubmit="handleAddNewCamera(event)" class="space-y-3.5 text-xs font-mono">
+
+      <!-- Add Camera Form -->
+      <form id="add-camera-form" onsubmit="handleAddNewCamera(event)" class="space-y-4">
+        
+        <!-- Row 1: Bus Identification & Vehicle Plate -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">
+              Bus / Unit ID <span class="text-cyan-400">*</span>
+            </label>
+            <input type="text" id="add-cam-bus-id" required placeholder="e.g. BUS-29" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white font-bold focus:outline-none focus:border-cyan-500 uppercase tracking-wider" 
+              oninput="syncCameraIdFromBusId(this.value)" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">
+              Vehicle Plate No. <span class="text-cyan-400">*</span>
+            </label>
+            <input type="text" id="add-cam-plate" required placeholder="e.g. WB-04-E-8831" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500 uppercase font-bold" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">
+              Camera Stream ID
+            </label>
+            <input type="text" id="add-cam-id" placeholder="e.g. CAM-BUS-29-FRONT" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-cyan-300 focus:outline-none focus:border-cyan-500" />
+          </div>
+        </div>
+
+        <!-- Row 2: Route & Current Location Name -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">
+              Assigned Route <span class="text-cyan-400">*</span>
+            </label>
+            <input type="text" id="add-cam-route" required placeholder="e.g. Park Street → Gariahat" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">
+              Location Landmark / Corridor <span class="text-cyan-400">*</span>
+            </label>
+            <input type="text" id="add-cam-location" required placeholder="e.g. Park Street Corridor, Kolkata" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500" />
+          </div>
+        </div>
+
+        <!-- Row 3: Exact Coordinates (Lat / Lng) + 1-Click Landmark Presets -->
+        <div class="p-3 bg-navy-950/80 border border-navy-800 rounded-xl space-y-2.5">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <span class="text-slate-300 font-bold flex items-center gap-1.5">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-400"></i>
+              Exact Map Coordinates (Latitude & Longitude)
+            </span>
+            <button type="button" onclick="useDeviceGpsForCamera()" class="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold underline">
+              <i data-lucide="crosshair" class="w-3 h-3"></i>
+              Use My Device GPS
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Latitude (° N)</label>
+              <input type="number" step="any" id="add-cam-lat" required placeholder="22.5512" 
+                class="w-full bg-navy-900 border border-navy-750 rounded-lg p-2 text-white font-mono focus:outline-none focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Longitude (° E)</label>
+              <input type="number" step="any" id="add-cam-lng" required placeholder="88.3524" 
+                class="w-full bg-navy-900 border border-navy-750 rounded-lg p-2 text-white font-mono focus:outline-none focus:border-cyan-500" />
+            </div>
+          </div>
+
+          <!-- Quick Preset Badges -->
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold">Quick Landmark Presets (Kolkata Hubs):</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="setAddCamLocation('Park Street Corridor', 22.5512, 88.3524)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Park Street
+              </button>
+              <button type="button" onclick="setAddCamLocation('Esplanade Central Terminus', 22.5645, 88.3518)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Esplanade
+              </button>
+              <button type="button" onclick="setAddCamLocation('Salt Lake Sector V', 22.5760, 88.4320)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Sector V
+              </button>
+              <button type="button" onclick="setAddCamLocation('Howrah Station / Bridge', 22.5851, 88.3468)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Howrah
+              </button>
+              <button type="button" onclick="setAddCamLocation('Sealdah Station Corridor', 22.5670, 88.3710)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Sealdah
+              </button>
+              <button type="button" onclick="setAddCamLocation('Airport Expressway (CCU)', 22.6547, 88.4467)" class="px-2 py-1 rounded bg-navy-900 hover:bg-navy-800 border border-navy-700 text-slate-300 hover:text-cyan-300 text-[10.5px] transition">
+                📍 Airport
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 4: Hardware Mount & Optical Sensor Model -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">Mount Position</label>
+            <select id="add-cam-mount" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500">
+              <option value="FRONT_WINDSHIELD">Front Windshield (Road Defect AI)</option>
+              <option value="ROOF_MOUNT">Roof Mounted (360° LiDAR / Vision)</option>
+              <option value="CABIN_DRIVER">Driver Cabin (Safety / Telemetry)</option>
+              <option value="REAR_BUMPER">Rear Bumper (Trailing Surface)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">Optical Sensor Model</label>
+            <select id="add-cam-model" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500">
+              <option value="Sony IMX477 4K HDR Industrial">Sony IMX477 4K HDR Industrial</option>
+              <option value="OmniVision OV4689 2K High-Speed">OmniVision OV4689 2K High-Speed</option>
+              <option value="Mobile Phone 4K Optical Sensor">Mobile Phone 4K Optical Sensor</option>
+              <option value="Basler ace 4K GigE Industrial Vision">Basler ace 4K GigE Industrial Vision</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 5: Protocol, Stream URL & Operator -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">Protocol</label>
+            <select id="add-cam-protocol" onchange="handleProtocolChange(this.value)" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500">
+              <option value="RTSP">RTSP (Edge Video Stream)</option>
+              <option value="WEBRTC">WebRTC WHEP (Low Latency)</option>
+              <option value="PHONE">Mobile Phone Camera (WebCam API)</option>
+              <option value="SIMULATED">Simulated 4K Transit Feed</option>
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-slate-300 font-bold mb-1">Stream Endpoint / URL</label>
+            <input type="text" id="add-cam-url" placeholder="rtsp://localhost:8554/live/bus-29" 
+              class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500 font-mono text-[11px]" />
+          </div>
+        </div>
+
         <div>
-          <label class="block text-slate-400 mb-1">Camera Stream Name / ID</label>
-          <input type="text" id="add-cam-name" required placeholder="e.g. BUS-29-CAM or PHONE-01" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500" />
+          <label class="block text-slate-300 font-bold mb-1">Driver / Depot Operator (Optional)</label>
+          <input type="text" id="add-cam-operator" placeholder="e.g. Subhashish Mukherjee (Depot 4)" 
+            class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500" />
         </div>
-        <div>
-          <label class="block text-slate-400 mb-1">Assigned Route</label>
-          <input type="text" id="add-cam-route" required placeholder="e.g. Park Circus → Ruby Hospital" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500" />
+
+        <!-- Optical Handshake Status Box -->
+        <div id="cam-test-status" class="hidden p-3 rounded-lg border text-[11px] font-mono"></div>
+
+        <!-- Modal Actions Footer -->
+        <div class="pt-3 border-t border-navy-800 flex flex-wrap items-center justify-between gap-2.5">
+          <button type="button" onclick="testOpticalCameraHandshake()" class="px-3 py-2 rounded-lg bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1.5 transition">
+            <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+            <span>Test Handshake</span>
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeAddCameraModal()" class="px-4 py-2 rounded-lg bg-navy-800 hover:bg-navy-750 text-slate-300 font-bold transition">
+              Cancel
+            </button>
+            <button type="submit" id="btn-save-new-camera" class="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow flex items-center gap-1.5 transition active:scale-95">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Save & Connect Camera</span>
+            </button>
+          </div>
         </div>
-        <div>
-          <label class="block text-slate-400 mb-1">Stream Protocol</label>
-          <select id="add-cam-protocol" class="w-full bg-navy-950 border border-navy-750 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500">
-            <option value="RTSP">RTSP (Edge Video Stream)</option>
-            <option value="WEBRTC">WebRTC WHEP (Low Latency)</option>
-            <option value="PHONE">Mobile Phone Camera (WebCam API)</option>
-          </select>
-        </div>
-        <div class="pt-3 border-t border-navy-800 flex justify-end gap-2">
-          <button type="button" onclick="closeAddCameraModal()" class="px-4 py-2 rounded-lg bg-navy-800 text-slate-300 font-bold">Cancel</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold shadow">Save Camera</button>
-        </div>
+
       </form>
     </div>
   </div>
