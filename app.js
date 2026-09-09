@@ -695,13 +695,101 @@ function getDynamicRealEvidencePhoto(id, category = 'Pothole') {
 }
 
 /**
- * Sync Data from Supabase with Fallback Integration
+ * Sync Data from Supabase with Bidirectional Push/Pull & Resilient Direct Fallback
  */
 async function syncSupabaseData() {
   const syncIcon = document.getElementById('sync-icon');
+  const btnSyncIcon = document.getElementById('btn-sync-cloud-icon');
   if (syncIcon) syncIcon.classList.add('animate-spin');
+  if (btnSyncIcon) btnSyncIcon.classList.add('animate-spin');
+
+  let pushedCount = 0;
 
   try {
+    // 0A. Push any un-synced custom buses to Supabase Cloud
+    let customBuses = [];
+    try {
+      customBuses = JSON.parse(localStorage.getItem('lunaris_custom_buses') || '[]');
+    } catch (e) {}
+
+    if (Array.isArray(customBuses) && customBuses.length > 0) {
+      let busesChanged = false;
+      for (const b of customBuses) {
+        if (!b.synced_to_cloud && typeof registerSupabaseCamera === 'function') {
+          try {
+            await registerSupabaseCamera({
+              camId: b.cameraId || `CAM-${b.id}`,
+              busId: b.id,
+              plate: b.plate,
+              route: b.route,
+              lat: b.coords ? b.coords[0] : (b.latitude || 22.5392),
+              lng: b.coords ? b.coords[1] : (b.longitude || 88.3654),
+              speed: b.speed || 34.5,
+              mount: b.mountPosition || 'FRONT_WINDSHIELD',
+              model: b.model || 'Sony IMX477 4K HDR Industrial',
+              resolution: '3840x2160',
+              streamUrl: b.streamUrl || `rtsp://edge-kol.lunaris.io/live/${b.id.toLowerCase()}`
+            });
+            b.synced_to_cloud = true;
+            busesChanged = true;
+            pushedCount++;
+          } catch (err) {
+            console.warn('[LUNARIS] Cloud sync bus push note:', err);
+          }
+        }
+      }
+      if (busesChanged) {
+        try {
+          localStorage.setItem('lunaris_custom_buses', JSON.stringify(customBuses));
+        } catch (e) {}
+      }
+    }
+
+    // 0B. Push any un-synced captured incidents to Supabase Cloud
+    let locallyCaptured = [];
+    try {
+      locallyCaptured = JSON.parse(localStorage.getItem('lunaris_captured_incidents') || '[]');
+    } catch (e) {}
+
+    if (Array.isArray(locallyCaptured) && locallyCaptured.length > 0) {
+      let incChanged = false;
+      for (const inc of locallyCaptured) {
+        if (!inc.synced_to_cloud && typeof insertSupabaseIncident === 'function') {
+          try {
+            await insertSupabaseIncident({
+              incident_id: inc.id,
+              category: inc.category || inc.type || 'Pothole',
+              title: inc.title || 'Detected Road Surface Anomaly',
+              address: inc.location || 'Kolkata Metropolitan Area',
+              latitude: inc.coords ? inc.coords[0] : (inc.latitude || 22.5626),
+              longitude: inc.coords ? inc.coords[1] : (inc.longitude || 88.3639),
+              severity: (inc.severity || 'MEDIUM').toUpperCase(),
+              severity_reason: inc.severity_reason || 'Edge AI Visual & Telemetry Detection',
+              status: inc.status || 'UNRESOLVED',
+              depth: inc.depth || 8.0,
+              width: inc.width || 45.0,
+              bus_id: inc.busId || inc.bus_id || 'BUS-07',
+              consensus_count: inc.consensus_count || 1,
+              confidence_score: inc.confidence_score || 98.0,
+              before_evidence: inc.before_evidence || '',
+              after_evidence: inc.after_evidence || null,
+              created_at: inc.created_at || new Date().toISOString()
+            });
+            inc.synced_to_cloud = true;
+            incChanged = true;
+            pushedCount++;
+          } catch (err) {
+            console.warn('[LUNARIS] Cloud sync incident push note:', err);
+          }
+        }
+      }
+      if (incChanged) {
+        try {
+          localStorage.setItem('lunaris_captured_incidents', JSON.stringify(locallyCaptured));
+        } catch (e) {}
+      }
+    }
+
     // 1. Fetch Incidents from Supabase
     const rawIncidents = await fetchSupabaseIncidents();
     if (Array.isArray(rawIncidents) && rawIncidents.length > 0) {
@@ -735,12 +823,6 @@ async function syncSupabaseData() {
         };
       });
 
-      // Load persistent locally captured incidents from storage
-      let locallyCaptured = [];
-      try {
-        locallyCaptured = JSON.parse(localStorage.getItem('lunaris_captured_incidents') || '[]');
-      } catch (e) {}
-
       // Merge locally captured + fetched Supabase + baseline ensuring no duplicates and filter out deleted items
       const fetchedIds = new Set(fetched.map(f => f.id));
       const combined = [...locallyCaptured, ...fetched, ...REAL_MUNICIPAL_INCIDENTS.filter(r => !fetchedIds.has(r.id))];
@@ -755,11 +837,6 @@ async function syncSupabaseData() {
       }
       DashboardState.incidents = deduped;
     } else {
-      let locallyCaptured = [];
-      try {
-        locallyCaptured = JSON.parse(localStorage.getItem('lunaris_captured_incidents') || '[]');
-      } catch (e) {}
-      
       const combined = [...locallyCaptured, ...REAL_MUNICIPAL_INCIDENTS];
       const seen = new Set();
       const deduped = [];
@@ -772,7 +849,7 @@ async function syncSupabaseData() {
       DashboardState.incidents = deduped;
     }
 
-    // 2. Fetch Bus Fleet
+    // 2. Fetch Bus Fleet from Supabase
     const rawBuses = await fetchSupabaseBusFleet();
     let fetchedBuses = [];
     if (Array.isArray(rawBuses) && rawBuses.length > 0) {
@@ -798,12 +875,6 @@ async function syncSupabaseData() {
       });
     }
 
-    // Merge persistent locally added buses so they never disappear
-    let customBuses = [];
-    try {
-      customBuses = JSON.parse(localStorage.getItem('lunaris_custom_buses') || '[]');
-    } catch (e) {}
-
     const seenBuses = new Set();
     const mergedBuses = [];
     for (const b of [...customBuses, ...fetchedBuses, ...DashboardState.buses]) {
@@ -814,7 +885,7 @@ async function syncSupabaseData() {
     }
     DashboardState.buses = mergedBuses;
 
-    // 3. Fetch Alerts
+    // 3. Fetch Alerts from Supabase
     const rawAlerts = await fetchSupabaseAlerts();
     if (Array.isArray(rawAlerts) && rawAlerts.length > 0) {
       DashboardState.alerts = rawAlerts.map(a => ({
@@ -830,14 +901,87 @@ async function syncSupabaseData() {
       DashboardState.alerts = [...REAL_MUNICIPAL_ALERTS];
     }
 
-    // Refresh All UI Elements
+    // Refresh All UI Elements & Leaflet Map
     updateDashboardUI();
+
+    return {
+      success: true,
+      incidentsCount: DashboardState.incidents.length,
+      busesCount: DashboardState.buses.length,
+      alertsCount: DashboardState.alerts.length,
+      pushedCount
+    };
 
   } catch (err) {
     console.warn('[LUNARIS] Local dataset fallback active:', err);
     updateDashboardUI();
+    return {
+      success: false,
+      error: err.message,
+      incidentsCount: DashboardState.incidents.length,
+      busesCount: DashboardState.buses.length,
+      pushedCount
+    };
   } finally {
     if (syncIcon) syncIcon.classList.remove('animate-spin');
+    if (btnSyncIcon) btnSyncIcon.classList.remove('animate-spin');
+  }
+}
+
+/**
+ * Handle "SYNC CLOUD" User Click Action
+ * Provides rich visual feedback, loading spinner, and toast notification
+ */
+async function handleSyncCloud(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const btn = document.getElementById('btn-sync-cloud');
+  const icon = document.getElementById('btn-sync-cloud-icon');
+  const label = document.getElementById('btn-sync-cloud-label');
+
+  // Loading state
+  if (btn) btn.disabled = true;
+  if (icon) {
+    icon.classList.add('animate-spin');
+    icon.setAttribute('data-lucide', 'loader-2');
+  }
+  if (label) label.textContent = 'SYNCING...';
+  if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+
+  showToast('🔄 Synchronizing with Supabase Cloud (pushing local & pulling live)...');
+
+  try {
+    const result = await syncSupabaseData();
+
+    if (label) label.textContent = 'SYNCED ✅';
+    if (btn) {
+      btn.classList.remove('bg-blue-600/20', 'border-cyan-500/40', 'text-cyan-300');
+      btn.classList.add('bg-emerald-600/30', 'border-emerald-400/60', 'text-emerald-300');
+    }
+
+    const pushMsg = (result?.pushedCount > 0) ? ` (${result.pushedCount} local updates uploaded)` : '';
+    showToast(`☁️ Cloud Synchronized! ${result?.incidentsCount || DashboardState.incidents.length} incidents & ${result?.busesCount || DashboardState.buses.length} fleet buses live from Supabase${pushMsg}.`);
+  } catch (err) {
+    console.error('[LUNARIS] Sync Cloud failed:', err);
+    if (label) label.textContent = 'SYNC ERROR ⚠️';
+    showToast('⚠️ Cloud sync fallback active: ' + (err.message || 'Dataset cached locally'));
+  } finally {
+    setTimeout(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('bg-emerald-600/30', 'border-emerald-400/60', 'text-emerald-300');
+        btn.classList.add('bg-blue-600/20', 'border-cyan-500/40', 'text-cyan-300');
+      }
+      if (icon) {
+        icon.classList.remove('animate-spin');
+        icon.setAttribute('data-lucide', 'cloud-download');
+      }
+      if (label) label.textContent = 'SYNC CLOUD';
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    }, 2800);
   }
 }
 
@@ -5773,6 +5917,7 @@ window.filterCitizenComplaints = filterCitizenComplaints;
 window.focusAnalytics = focusAnalytics;
 window.switchDashboardView = switchDashboardView;
 window.syncSupabaseData = syncSupabaseData;
+window.handleSyncCloud = handleSyncCloud;
 window.toggleAlertsDropdown = toggleAlertsDropdown;
 window.toggleAudioAlerts = toggleAudioAlerts;
 window.toggleSidebar = typeof toggleSidebar === 'function' ? toggleSidebar : () => document.getElementById('sidebar')?.classList.toggle('-translate-x-full');

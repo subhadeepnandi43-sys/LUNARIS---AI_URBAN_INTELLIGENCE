@@ -338,9 +338,9 @@
               <i data-lucide="plus" class="w-4 h-4 text-cyan-400"></i>
               <span>ADD CAMERA</span>
             </button>
-            <button onclick="syncSupabaseData(); showToast('☁️ Pulling latest updates & telemetry from Supabase Cloud...')" class="flex items-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/40 text-cyan-300 rounded-xl font-bold border border-cyan-500/40 transition active:scale-95 shadow-sm" title="Pull latest updates made from your friend's laptop or cloud database">
-              <i data-lucide="cloud-download" class="w-4 h-4 text-cyan-300"></i>
-              <span>SYNC CLOUD</span>
+            <button id="btn-sync-cloud" onclick="handleSyncCloud(event)" class="flex items-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/40 text-cyan-300 rounded-xl font-bold border border-cyan-500/40 transition active:scale-95 shadow-sm cursor-pointer" title="Synchronize local captured defects and fleet updates with Supabase Cloud">
+              <i id="btn-sync-cloud-icon" data-lucide="cloud-download" class="w-4 h-4 text-cyan-300"></i>
+              <span id="btn-sync-cloud-label">SYNC CLOUD</span>
             </button>
           </div>
         </section>
@@ -804,8 +804,9 @@
 
             <div class="flex items-center gap-2.5 text-xs font-mono">
               <input type="text" id="bus-search-input" onkeyup="filterBusTable()" placeholder="Search Bus / Route..." class="bg-navy-950 text-slate-200 border border-navy-750 rounded-xl px-3.5 py-2 focus:outline-none focus:border-cyan-500 text-xs sm:text-sm w-56 shadow-inner" />
-              <button onclick="syncSupabaseData()" class="px-3.5 py-2 bg-navy-800 hover:bg-navy-750 text-cyan-400 rounded-xl border border-navy-700 transition flex items-center gap-1.5 text-xs font-bold">
-                <i data-lucide="refresh-cw" class="w-4 h-4" id="sync-icon"></i> Sync
+              <button onclick="handleSyncCloud(event)" class="px-3.5 py-2 bg-navy-800 hover:bg-navy-750 text-cyan-400 rounded-xl border border-navy-700 transition flex items-center gap-1.5 text-xs font-bold cursor-pointer" title="Refresh fleet and incident data from Supabase">
+                <i data-lucide="refresh-cw" class="w-4 h-4" id="sync-icon"></i>
+                <span>SYNC</span>
               </button>
             </div>
           </div>
@@ -2390,8 +2391,8 @@
   <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- App Logic Scripts -->
-  <script src="supabaseClient.js?v=13.0"></script>
-  <script src="app.js?v=13.0"></script>
+  <script src="supabaseClient.js?v=14.0"></script>
+  <script src="app.js?v=14.0"></script>
 
   <!-- Robust Fallback Click Dispatcher for Primary Actions & KPI Metric Cards -->
   <script>
@@ -2414,6 +2415,17 @@
           e.preventDefault();
           if (typeof window.openAddCameraModal === 'function') {
             window.openAddCameraModal();
+          }
+        });
+      }
+
+      // Direct binding for Sync Cloud Button
+      const syncCloudBtn = document.getElementById('btn-sync-cloud');
+      if (syncCloudBtn) {
+        syncCloudBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (typeof window.handleSyncCloud === 'function') {
+            window.handleSyncCloud(e);
           }
         });
       }

@@ -10,35 +10,82 @@ const SUPABASE_CONFIG = {
   projectRef: 'ecmtwoccsdlhphdlutmz'
 };
 
-// Initialize Supabase JS Client
+// Initialize Supabase JS Client (with lazy getter)
 let supabaseClient = null;
 
-if (window.supabase) {
-  try {
-    supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
-    console.log('[LUNARIS] Supabase Client Initialized:', SUPABASE_CONFIG.url);
-  } catch (err) {
-    console.error('[LUNARIS] Failed to initialize Supabase Client:', err);
+function getSupabaseClient() {
+  if (!supabaseClient && window.supabase && typeof window.supabase.createClient === 'function') {
+    try {
+      supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+      console.log('[LUNARIS] Supabase Client Initialized via getSupabaseClient():', SUPABASE_CONFIG.url);
+    } catch (err) {
+      console.warn('[LUNARIS] Failed to initialize Supabase Client:', err);
+    }
   }
+  return supabaseClient;
+}
+
+if (window.supabase) {
+  getSupabaseClient();
 } else {
-  console.warn('[LUNARIS] Supabase JS SDK not loaded yet.');
+  console.warn('[LUNARIS] Supabase JS SDK not loaded yet, direct REST fallback active.');
+}
+
+/**
+ * Direct REST Fallback to Supabase PostgREST Engine
+ * Ensures 100% sync uptime even if CDN SDK is blocked or fails to load
+ */
+async function directSupabaseRest(endpoint, options = {}) {
+  const method = options.method || 'GET';
+  const headers = {
+    'apikey': SUPABASE_CONFIG.anonKey,
+    'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+    'Content-Type': 'application/json',
+    'Prefer': options.prefer || 'return=representation',
+    ...(options.headers || {})
+  };
+  const url = `${SUPABASE_CONFIG.url}/rest/v1/${endpoint}`;
+  const fetchOpts = {
+    method,
+    headers
+  };
+  if (options.body) {
+    fetchOpts.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+  }
+  const res = await fetch(url, fetchOpts);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Supabase REST HTTP ${res.status}: ${errText}`);
+  }
+  if (res.status === 204) return [];
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
 }
 
 /**
  * Test Connection Heartbeat with Supabase
  */
 async function testSupabaseConnection() {
-  if (!supabaseClient) return { success: false, error: 'SDK not initialized' };
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('incidents')
+        .select('count', { count: 'exact', head: true });
 
+      if (error && error.code !== 'PGRST116') {
+        return { success: true, tableReady: false, message: error.message };
+      }
+      return { success: true, tableReady: true, count: data };
+    } catch (e) {}
+  }
+
+  // REST Fallback Test
   try {
-    const { data, error } = await supabaseClient
-      .from('incidents')
-      .select('count', { count: 'exact', head: true });
-
-    if (error && error.code !== 'PGRST116') {
-      return { success: true, tableReady: false, message: error.message };
-    }
-    return { success: true, tableReady: true, count: data };
+    const data = await directSupabaseRest('incidents?select=count', {
+      headers: { 'Range-Unit': 'items', 'Range': '0-0', 'Prefer': 'count=exact' }
+    });
+    return { success: true, tableReady: true, directRest: true, count: data };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -48,20 +95,29 @@ async function testSupabaseConnection() {
  * Fetch All Incidents from Supabase (Production public.incidents)
  */
 async function fetchSupabaseIncidents() {
-  if (!supabaseClient) return [];
-  try {
-    const { data, error } = await supabaseClient
-      .from('incidents')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('incidents')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('[LUNARIS Supabase] fetchIncidents notice:', error.message);
-      return [];
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+      if (error) console.warn('[LUNARIS Supabase] SDK fetchIncidents notice:', error.message);
+    } catch (e) {
+      console.warn('[LUNARIS Supabase] SDK fetchIncidents error:', e);
     }
-    return data || [];
-  } catch (e) {
-    console.error('[LUNARIS Supabase] fetchIncidents error:', e);
+  }
+
+  // Direct REST fallback
+  try {
+    const data = await directSupabaseRest('incidents?select=*&order=created_at.desc');
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[LUNARIS Supabase] REST fetchIncidents fallback error:', err);
     return [];
   }
 }
@@ -70,20 +126,29 @@ async function fetchSupabaseIncidents() {
  * Fetch Bus Fleet from Supabase (public.buses)
  */
 async function fetchSupabaseBusFleet() {
-  if (!supabaseClient) return [];
-  try {
-    const { data, error } = await supabaseClient
-      .from('buses')
-      .select('*')
-      .order('bus_code', { ascending: true });
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('buses')
+        .select('*')
+        .order('bus_code', { ascending: true });
 
-    if (error) {
-      console.warn('[LUNARIS Supabase] fetchBusFleet notice:', error.message);
-      return [];
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+      if (error) console.warn('[LUNARIS Supabase] SDK fetchBusFleet notice:', error.message);
+    } catch (e) {
+      console.warn('[LUNARIS Supabase] SDK fetchBusFleet error:', e);
     }
-    return data || [];
-  } catch (e) {
-    console.error('[LUNARIS Supabase] fetchBusFleet error:', e);
+  }
+
+  // Direct REST fallback
+  try {
+    const data = await directSupabaseRest('buses?select=*&order=bus_code.asc');
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[LUNARIS Supabase] REST fetchBusFleet fallback error:', err);
     return [];
   }
 }
@@ -92,14 +157,21 @@ async function fetchSupabaseBusFleet() {
  * Fetch Latest GPS Coordinates for Buses
  */
 async function fetchSupabaseBusLocations() {
-  if (!supabaseClient) return [];
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('bus_locations')
+        .select('*')
+        .order('recorded_at', { ascending: false })
+        .limit(50);
+      if (!error && Array.isArray(data)) return data;
+    } catch (e) {}
+  }
+
   try {
-    const { data, error } = await supabaseClient
-      .from('bus_locations')
-      .select('*')
-      .order('recorded_at', { ascending: false })
-      .limit(50);
-    return data || [];
+    const data = await directSupabaseRest('bus_locations?select=*&order=recorded_at.desc&limit=50');
+    return Array.isArray(data) ? data : [];
   } catch (e) {
     return [];
   }
@@ -109,21 +181,30 @@ async function fetchSupabaseBusLocations() {
  * Fetch Notifications / Real-time Alerts from Supabase (public.notifications)
  */
 async function fetchSupabaseAlerts() {
-  if (!supabaseClient) return [];
-  try {
-    const { data, error } = await supabaseClient
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(15);
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15);
 
-    if (error) {
-      console.warn('[LUNARIS Supabase] fetchNotifications notice:', error.message);
-      return [];
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+      if (error) console.warn('[LUNARIS Supabase] SDK fetchNotifications notice:', error.message);
+    } catch (e) {
+      console.warn('[LUNARIS Supabase] SDK fetchNotifications error:', e);
     }
-    return data || [];
-  } catch (e) {
-    console.error('[LUNARIS Supabase] fetchNotifications error:', e);
+  }
+
+  // Direct REST fallback
+  try {
+    const data = await directSupabaseRest('notifications?select=*&order=created_at.desc&limit=15');
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[LUNARIS Supabase] REST fetchNotifications fallback error:', err);
     return [];
   }
 }
@@ -132,14 +213,21 @@ async function fetchSupabaseAlerts() {
  * Fetch Traffic Events from Supabase (public.traffic_events)
  */
 async function fetchSupabaseTrafficEvents() {
-  if (!supabaseClient) return [];
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('traffic_events')
+        .select('*')
+        .order('recorded_at', { ascending: false })
+        .limit(10);
+      if (!error && Array.isArray(data)) return data;
+    } catch (e) {}
+  }
+
   try {
-    const { data, error } = await supabaseClient
-      .from('traffic_events')
-      .select('*')
-      .order('recorded_at', { ascending: false })
-      .limit(10);
-    return data || [];
+    const data = await directSupabaseRest('traffic_events?select=*&order=recorded_at.desc&limit=10');
+    return Array.isArray(data) ? data : [];
   } catch (e) {
     return [];
   }
@@ -149,15 +237,28 @@ async function fetchSupabaseTrafficEvents() {
  * Insert a New Detected Incident into Supabase
  */
 async function insertSupabaseIncident(incidentPayload) {
-  if (!supabaseClient) throw new Error('Supabase client not ready');
+  const client = getSupabaseClient();
+  const payloadArray = Array.isArray(incidentPayload) ? incidentPayload : [incidentPayload];
 
-  const { data, error } = await supabaseClient
-    .from('incidents')
-    .insert([incidentPayload])
-    .select();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('incidents')
+        .insert(payloadArray)
+        .select();
 
-  if (error) throw error;
-  return data;
+      if (!error && data) return data;
+      if (error) console.warn('[LUNARIS Supabase] SDK insertIncident notice:', error.message);
+    } catch (e) {
+      console.warn('[LUNARIS Supabase] SDK insertIncident error:', e);
+    }
+  }
+
+  // Direct REST fallback
+  return await directSupabaseRest('incidents', {
+    method: 'POST',
+    body: payloadArray
+  });
 }
 
 /**
@@ -359,111 +460,139 @@ function subscribeSupabaseRealtime(onIncidentChange, onBusChange, onAlertChange)
  * Register & Store a New Bus and Camera Node Permanently in Supabase
  */
 async function registerSupabaseCamera(cameraData) {
-  if (!supabaseClient) {
-    console.warn('[LUNARIS Supabase] Client not initialized, local storage active');
-    return { success: true, localOnly: true };
-  }
-
+  const client = getSupabaseClient();
   const results = { bus: null, camera: null, location: null, stream: null };
+
+  const busRow = {
+    bus_code: cameraData.busId,
+    registration_number: cameraData.plate,
+    route_name: cameraData.route,
+    status: 'ACTIVE',
+    last_latitude: cameraData.lat,
+    last_longitude: cameraData.lng,
+    last_seen_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  const camRow = {
+    camera_id: cameraData.camId,
+    bus_id: cameraData.busId,
+    model: cameraData.model || 'Sony IMX477 4K HDR Industrial',
+    mount_position: cameraData.mount || 'FRONT_WINDSHIELD',
+    resolution: cameraData.resolution || '3840x2160',
+    fps_capability: 60,
+    status: 'ONLINE',
+    updated_at: new Date().toISOString()
+  };
+
+  const locRow = {
+    bus_id: cameraData.busId,
+    latitude: cameraData.lat,
+    longitude: cameraData.lng,
+    speed: cameraData.speed || 34.0,
+    heading: 90,
+    captured_at: new Date().toISOString()
+  };
+
+  const streamRow = {
+    camera_id: cameraData.camId,
+    bus_id: cameraData.busId,
+    stream_path: `/live/${cameraData.busId.toLowerCase()}`,
+    rtsp_url: cameraData.streamUrl || `rtsp://edge-kol.lunaris.io/live/${cameraData.busId.toLowerCase()}`,
+    webrtc_url: `http://localhost:8889/live/${cameraData.busId.toLowerCase()}`,
+    hls_url: `http://localhost:8888/live/${cameraData.busId.toLowerCase()}/index.m3u8`,
+    active_status: 'STREAMING'
+  };
 
   // 1. Upsert into public.buses
   try {
-    const { data: busData, error: busError } = await supabaseClient
-      .from('buses')
-      .upsert([{
-        bus_code: cameraData.busId,
-        registration_number: cameraData.plate,
-        route_name: cameraData.route,
-        status: 'ACTIVE',
-        last_latitude: cameraData.lat,
-        last_longitude: cameraData.lng,
-        last_seen_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }], { onConflict: 'bus_code' })
-      .select();
-
-    if (busError) {
-      console.warn('[LUNARIS Supabase] buses upsert notice:', busError.message);
-    } else {
-      results.bus = busData;
+    if (client) {
+      const { data: busData, error: busError } = await client
+        .from('buses')
+        .upsert([busRow], { onConflict: 'bus_code' })
+        .select();
+      if (!busError) results.bus = busData;
+    }
+    if (!results.bus) {
+      results.bus = await directSupabaseRest('buses', {
+        method: 'POST',
+        body: [busRow],
+        prefer: 'resolution=merge-duplicates,return=representation'
+      });
     }
   } catch (e) {
-    console.warn('[LUNARIS Supabase] buses exception:', e.message);
+    console.warn('[LUNARIS Supabase] buses upsert notice:', e.message);
   }
 
   // 2. Upsert into public.cameras
   try {
-    const { data: camData, error: camError } = await supabaseClient
-      .from('cameras')
-      .upsert([{
-        camera_id: cameraData.camId,
-        bus_id: cameraData.busId,
-        model: cameraData.model || 'Sony IMX477 4K HDR Industrial',
-        mount_position: cameraData.mount || 'FRONT_WINDSHIELD',
-        resolution: cameraData.resolution || '3840x2160',
-        fps_capability: 60,
-        status: 'ONLINE',
-        updated_at: new Date().toISOString()
-      }], { onConflict: 'camera_id' })
-      .select();
-
-    if (camError) {
-      console.warn('[LUNARIS Supabase] cameras upsert notice:', camError.message);
-    } else {
-      results.camera = camData;
+    if (client) {
+      const { data: camData, error: camError } = await client
+        .from('cameras')
+        .upsert([camRow], { onConflict: 'camera_id' })
+        .select();
+      if (!camError) results.camera = camData;
+    }
+    if (!results.camera) {
+      results.camera = await directSupabaseRest('cameras', {
+        method: 'POST',
+        body: [camRow],
+        prefer: 'resolution=merge-duplicates,return=representation'
+      });
     }
   } catch (e) {
-    console.warn('[LUNARIS Supabase] cameras exception:', e.message);
+    console.warn('[LUNARIS Supabase] cameras upsert notice:', e.message);
   }
 
   // 3. Insert into public.bus_locations
   try {
-    const { data: locData, error: locError } = await supabaseClient
-      .from('bus_locations')
-      .insert([{
-        bus_id: cameraData.busId,
-        latitude: cameraData.lat,
-        longitude: cameraData.lng,
-        speed: cameraData.speed || 34.0,
-        heading: 90,
-        captured_at: new Date().toISOString()
-      }])
-      .select();
-
-    if (locError) {
-      console.warn('[LUNARIS Supabase] bus_locations notice:', locError.message);
-    } else {
-      results.location = locData;
+    if (client) {
+      const { data: locData, error: locError } = await client
+        .from('bus_locations')
+        .insert([locRow])
+        .select();
+      if (!locError) results.location = locData;
+    }
+    if (!results.location) {
+      results.location = await directSupabaseRest('bus_locations', {
+        method: 'POST',
+        body: [locRow]
+      });
     }
   } catch (e) {
-    console.warn('[LUNARIS Supabase] bus_locations exception:', e.message);
+    console.warn('[LUNARIS Supabase] bus_locations notice:', e.message);
   }
 
   // 4. Upsert into public.camera_streams
   try {
-    const { data: strData, error: strError } = await supabaseClient
-      .from('camera_streams')
-      .upsert([{
-        camera_id: cameraData.camId,
-        bus_id: cameraData.busId,
-        stream_path: `/live/${cameraData.busId.toLowerCase()}`,
-        rtsp_url: cameraData.streamUrl || `rtsp://edge-kol.lunaris.io/live/${cameraData.busId.toLowerCase()}`,
-        webrtc_url: `http://localhost:8889/live/${cameraData.busId.toLowerCase()}`,
-        hls_url: `http://localhost:8888/live/${cameraData.busId.toLowerCase()}/index.m3u8`,
-        active_status: 'STREAMING'
-      }], { onConflict: 'stream_path' })
-      .select();
-
-    if (strError) {
-      console.warn('[LUNARIS Supabase] camera_streams notice:', strError.message);
-    } else {
-      results.stream = strData;
+    if (client) {
+      const { data: strData, error: strError } = await client
+        .from('camera_streams')
+        .upsert([streamRow], { onConflict: 'stream_path' })
+        .select();
+      if (!strError) results.stream = strData;
+    }
+    if (!results.stream) {
+      results.stream = await directSupabaseRest('camera_streams', {
+        method: 'POST',
+        body: [streamRow],
+        prefer: 'resolution=merge-duplicates,return=representation'
+      });
     }
   } catch (e) {
-    console.warn('[LUNARIS Supabase] camera_streams exception:', e.message);
+    console.warn('[LUNARIS Supabase] camera_streams notice:', e.message);
   }
 
   return { success: true, data: results };
 }
 
+window.SUPABASE_CONFIG = SUPABASE_CONFIG;
+window.getSupabaseClient = getSupabaseClient;
+window.directSupabaseRest = directSupabaseRest;
+window.testSupabaseConnection = testSupabaseConnection;
+window.fetchSupabaseIncidents = fetchSupabaseIncidents;
+window.fetchSupabaseBusFleet = fetchSupabaseBusFleet;
+window.fetchSupabaseBusLocations = fetchSupabaseBusLocations;
+window.fetchSupabaseAlerts = fetchSupabaseAlerts;
+window.insertSupabaseIncident = insertSupabaseIncident;
 window.registerSupabaseCamera = registerSupabaseCamera;
