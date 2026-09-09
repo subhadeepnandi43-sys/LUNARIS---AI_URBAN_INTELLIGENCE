@@ -333,80 +333,195 @@
         <section id="kpi-section" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
           
           <!-- Card 1: TOTAL INCIDENTS -->
-          <div id="kpi-card-total" onclick="openKpiDrilldownModal('TOTAL')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-blue-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view all incidents">
+          <div id="kpi-card-total" onclick="openKpiDrilldownModal('TOTAL')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-blue-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view topic breakdown">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-blue-300 transition">TOTAL INCIDENTS</span>
+              <span id="kpi-title-total" class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-blue-300 transition">TOTAL INCIDENTS</span>
               <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
                 <i data-lucide="layers" class="w-5 h-5"></i>
               </div>
             </div>
             <div class="text-3xl lg:text-4xl font-black text-white tracking-tight font-mono my-2" id="kpi-total-incidents">0</div>
             <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-navy-800/60">
-              <span class="flex items-center gap-1.5 text-emerald-400 font-semibold"><i data-lucide="database" class="w-3.5 h-3.5"></i> Supabase Synced</span>
-              <button type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('TOTAL')" class="text-cyan-400 hover:text-cyan-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View &rarr;</button>
+              <span id="kpi-subtext-total" class="flex items-center gap-1.5 text-emerald-400 font-semibold"><i data-lucide="database" class="w-3.5 h-3.5"></i> Supabase Synced</span>
+              <button id="kpi-btn-total" type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('TOTAL')" class="text-cyan-400 hover:text-cyan-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View Topic &rarr;</button>
             </div>
           </div>
 
           <!-- Card 2: CRITICAL ALERTS -->
-          <div id="kpi-card-critical" onclick="openKpiDrilldownModal('CRITICAL')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-red-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view critical alerts">
+          <div id="kpi-card-critical" onclick="openKpiDrilldownModal('CRITICAL')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-red-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view urgent hazards">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-red-300 transition">CRITICAL ALERTS</span>
+              <span id="kpi-title-critical" class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-red-300 transition">CRITICAL ALERTS</span>
               <div class="w-9 h-9 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 flex items-center justify-center">
                 <i data-lucide="alert-octagon" class="w-5 h-5 animate-pulse"></i>
               </div>
             </div>
             <div class="text-3xl lg:text-4xl font-black text-red-500 tracking-tight font-mono my-2" id="kpi-critical">0</div>
             <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-navy-800/60">
-              <span class="flex items-center gap-1.5 text-red-400 font-semibold"><i data-lucide="zap" class="w-3.5 h-3.5"></i> Urgent Action</span>
-              <button type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('CRITICAL')" class="text-red-400 hover:text-red-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View &rarr;</button>
+              <span id="kpi-subtext-critical" class="flex items-center gap-1.5 text-red-400 font-semibold"><i data-lucide="zap" class="w-3.5 h-3.5"></i> Urgent Action</span>
+              <button id="kpi-btn-critical" type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('CRITICAL')" class="text-red-400 hover:text-red-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View Topic &rarr;</button>
             </div>
           </div>
 
           <!-- Card 3: ACTIVE BUSES -->
-          <div id="kpi-card-buses" onclick="openKpiDrilldownModal('BUSES')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-cyan-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view active bus fleet">
+          <div id="kpi-card-buses" onclick="openKpiDrilldownModal('BUSES')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-cyan-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view active transit telemetry">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-cyan-300 transition">ACTIVE BUSES</span>
+              <span id="kpi-title-buses" class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-cyan-300 transition">ACTIVE BUSES</span>
               <div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
                 <i data-lucide="bus" class="w-5 h-5"></i>
               </div>
             </div>
             <div class="text-3xl lg:text-4xl font-black text-white tracking-tight font-mono my-2" id="kpi-buses">4</div>
             <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-navy-800/60">
-              <span class="flex items-center gap-1.5 text-cyan-400 font-semibold"><i data-lucide="wifi" class="w-3.5 h-3.5"></i> Fleet Telemetry</span>
-              <button type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('BUSES')" class="text-cyan-400 hover:text-cyan-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View &rarr;</button>
+              <span id="kpi-subtext-buses" class="flex items-center gap-1.5 text-cyan-400 font-semibold"><i data-lucide="wifi" class="w-3.5 h-3.5"></i> Fleet Telemetry</span>
+              <button id="kpi-btn-buses" type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('BUSES')" class="text-cyan-400 hover:text-cyan-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View Topic &rarr;</button>
             </div>
           </div>
 
           <!-- Card 4: RESOLVED TODAY -->
-          <div id="kpi-card-resolved" onclick="openKpiDrilldownModal('RESOLVED')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-emerald-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view resolved incidents">
+          <div id="kpi-card-resolved" onclick="openKpiDrilldownModal('RESOLVED')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-emerald-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view verified fixes">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-emerald-300 transition">RESOLVED TODAY</span>
+              <span id="kpi-title-resolved" class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-emerald-300 transition">RESOLVED TODAY</span>
               <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
                 <i data-lucide="check-circle" class="w-5 h-5"></i>
               </div>
             </div>
             <div class="text-3xl lg:text-4xl font-black text-emerald-400 tracking-tight font-mono my-2" id="kpi-resolved">0</div>
             <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-navy-800/60">
-              <span class="flex items-center gap-1.5 text-emerald-400 font-semibold"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Verified Fixes</span>
-              <button type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('RESOLVED')" class="text-emerald-400 hover:text-emerald-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View &rarr;</button>
+              <span id="kpi-subtext-resolved" class="flex items-center gap-1.5 text-emerald-400 font-semibold"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Verified Fixes</span>
+              <button id="kpi-btn-resolved" type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('RESOLVED')" class="text-emerald-400 hover:text-emerald-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View Topic &rarr;</button>
             </div>
           </div>
 
           <!-- Card 5: IN PROGRESS -->
-          <div id="kpi-card-inprogress" onclick="openKpiDrilldownModal('IN_PROGRESS')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-amber-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view defects under active repair">
+          <div id="kpi-card-inprogress" onclick="openKpiDrilldownModal('IN_PROGRESS')" class="kpi-card group bg-navy-900/90 p-5 md:p-6 rounded-2xl border border-navy-800 hover:border-amber-500/60 shadow-lg relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 cursor-pointer active:scale-95" title="Click to view active repairs">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-amber-300 transition">IN PROGRESS</span>
+              <span id="kpi-title-inprogress" class="text-xs lg:text-sm font-mono uppercase tracking-wider text-slate-300 font-bold group-hover:text-amber-300 transition">IN PROGRESS</span>
               <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
                 <i data-lucide="truck" class="w-5 h-5"></i>
               </div>
             </div>
             <div class="text-3xl lg:text-4xl font-black text-amber-400 tracking-tight font-mono my-2" id="kpi-inprogress">0</div>
             <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2 border-t border-navy-800/60">
-              <span class="flex items-center gap-1.5 text-amber-400 font-semibold"><i data-lucide="loader" class="w-3.5 h-3.5 animate-spin-slow"></i> Active Crews</span>
-              <button type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('IN_PROGRESS')" class="text-amber-400 hover:text-amber-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View &rarr;</button>
+              <span id="kpi-subtext-inprogress" class="flex items-center gap-1.5 text-amber-400 font-semibold"><i data-lucide="loader" class="w-3.5 h-3.5 animate-spin-slow"></i> Active Crews</span>
+              <button id="kpi-btn-inprogress" type="button" onclick="event.stopPropagation(); openKpiDrilldownModal('IN_PROGRESS')" class="text-amber-400 hover:text-amber-300 font-bold group-hover:underline flex items-center gap-1 cursor-pointer">View Topic &rarr;</button>
             </div>
           </div>
 
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- TOPIC-WISE URBAN INTELLIGENCE EXPLORER (ROLE DEPENDENT & FILTERABLE) -->
+        <!-- ===================================================================== -->
+        <section id="topic-wise-section" class="bg-navy-900/90 rounded-2xl border border-navy-800 p-5 md:p-6 shadow-xl backdrop-blur-md">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-navy-800/80">
+            <div>
+              <h3 class="text-sm md:text-base font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2.5">
+                <i data-lucide="layers" class="w-5 h-5 text-cyan-400"></i>
+                <span>Topic-Wise Urban Intelligence Explorer</span>
+                <span id="topic-bar-role-badge" class="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">ROLE SCOPED</span>
+              </h3>
+              <p id="topic-bar-subtitle" class="text-xs text-slate-400 mt-1">Select a topic category below to inspect, dispatch, or audit municipal incidents topic-by-topic.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="openKpiDrilldownModal('TOTAL', 'ALL')" class="px-3 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 text-xs font-bold font-mono transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+                <i data-lucide="grid" class="w-4 h-4"></i>
+                <span>All Topics Registry &rarr;</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 6 Dedicated Topic Cards Grid -->
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5" id="topic-explorer-grid">
+            <!-- 1. Potholes -->
+            <div onclick="openKpiDrilldownModal('TOTAL', 'POTHOLE')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-cyan-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🕳️</span>
+                <span id="topic-count-pothole" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">0</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-cyan-300 transition">Potholes</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">Asphalt & Craters</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-pothole">View Topic &rarr;</span>
+              </div>
+            </div>
+
+            <!-- 2. Road Damage -->
+            <div onclick="openKpiDrilldownModal('TOTAL', 'ROAD_DAMAGE')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-blue-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🛣️</span>
+                <span id="topic-count-road_damage" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">0</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-blue-300 transition">Road Damage</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">Structural & Flyover</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-blue-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-road_damage">View Topic &rarr;</span>
+              </div>
+            </div>
+
+            <!-- 3. Waterlogging -->
+            <div onclick="openKpiDrilldownModal('TOTAL', 'WATERLOGGING')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-cyan-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🌊</span>
+                <span id="topic-count-waterlogging" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">0</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-cyan-300 transition">Waterlogging</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">Monsoon & Drainage</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-waterlogging">View Topic &rarr;</span>
+              </div>
+            </div>
+
+            <!-- 4. Traffic Hazards -->
+            <div onclick="openKpiDrilldownModal('TOTAL', 'TRAFFIC')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-red-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🚦</span>
+                <span id="topic-count-traffic" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30">0</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-red-300 transition">Traffic Hazards</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">Signals & Obstructions</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-red-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-traffic">View Topic &rarr;</span>
+              </div>
+            </div>
+
+            <!-- 5. Transit Fleet -->
+            <div onclick="openKpiDrilldownModal('BUSES', 'ALL')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-emerald-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🚌</span>
+                <span id="topic-count-buses" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">4</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-emerald-300 transition">Transit Fleet</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">AI Bus Telemetry</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-emerald-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-buses">View Topic &rarr;</span>
+              </div>
+            </div>
+
+            <!-- 6. Sanitation & Civic -->
+            <div onclick="openKpiDrilldownModal('TOTAL', 'CIVIC')" class="topic-chip group bg-navy-950/80 hover:bg-navy-800/90 p-3.5 rounded-xl border border-navy-800 hover:border-amber-500/60 transition-all duration-200 cursor-pointer flex flex-col justify-between h-full shadow">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🗑️</span>
+                <span id="topic-count-civic" class="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">0</span>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white group-hover:text-amber-300 transition">Sanitation & Civic</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">Waste & Streetlights</div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-navy-800/80 flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold group-hover:underline">
+                <span id="topic-btn-txt-civic">View Topic &rarr;</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- ===================================================================== -->
