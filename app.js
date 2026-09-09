@@ -4286,34 +4286,35 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     finalFiltered = baseList.filter(item => getTopicKey(item) === currentKpiModalTopic);
   }
 
-  // Fallback realistic Kolkata topic incidents if list is empty
-  if (finalFiltered.length === 0 && !isBusMode && currentKpiModalTopic !== 'ALL') {
+  if (finalFiltered.length === 0 && currentKpiModalTopic !== 'ALL') {
     const fallbackMap = {
       POTHOLE: [
-        { id: 'RD-1042', title: 'Severe Lane Pothole near Park Hotel', category: 'Pothole', address: 'Park Street near Park Hotel, Kolkata', coords: [22.5512, 88.3524], severity: 'HIGH', status: 'IN PROGRESS', depth: 8.5, confidence_score: 98.4, details: 'Sharp impact asphalt crater detected in eastbound fast lane. Squad-01 dispatched.' },
-        { id: 'RD-1104', title: 'Critical Crater on Transit Junction', category: 'Pothole', address: 'Esplanade Central Bus Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 13.0, confidence_score: 99.2, details: 'Large deep crater causing immediate vehicle deceleration and wheel impact hazards.' }
+        { id: 'RD-1042', category: 'Pothole', title: 'Severe Lane Pothole near Park Hotel', location: 'Park Street near Park Hotel, Kolkata', coords: [22.5512, 88.3524], severity: 'HIGH', status: 'IN PROGRESS', depth: 8.5, confidence_score: 98.4, bus_id: 'BUS-07' },
+        { id: 'RD-1104', category: 'Pothole', title: 'Critical Crater on Transit Junction', location: 'Esplanade Central, Kolkata', coords: [22.5645, 88.3518], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 13.0, confidence_score: 99.2, bus_id: 'BUS-07' },
+        { id: 'RD-0992', category: 'Pothole', title: 'Camac Street Road Repair', location: 'Camac Street, Kolkata', coords: [22.5468, 88.3541], severity: 'MEDIUM', status: 'RESOLVED', depth: 6.2, confidence_score: 97.5, bus_id: 'BUS-07' }
       ],
       ROAD_DAMAGE: [
-        { id: 'RD-1002', title: 'Asphalt Ravelling & Structural Cracks', category: 'Road Damage', address: 'AJC Bose Road Flyover Ramp, Kolkata', coords: [22.5415, 88.3578], severity: 'HIGH', status: 'IN PROGRESS', depth: 6.4, confidence_score: 94.8, details: 'Heavy vehicle surface wear with loose gravel. Work Order WO-8812 assigned.' },
-        { id: 'RD-1015', title: 'Concrete Bitumen Fissure', category: 'Road Damage', address: 'EM Bypass Near Science City, Kolkata', coords: [22.5401, 88.3965], severity: 'MEDIUM', status: 'UNRESOLVED', depth: 5.2, confidence_score: 93.1, details: 'Longitudinal pavement crack along bus rapid transit lane.' }
+        { id: 'RD-1002', category: 'Road Damage', title: 'Asphalt Ravelling & Structural Cracks', location: 'AJC Bose Road Flyover Ramp, Kolkata', coords: [22.5415, 88.3578], severity: 'HIGH', status: 'IN PROGRESS', depth: 6.4, confidence_score: 94.8, bus_id: 'BUS-12' },
+        { id: 'RD-1007', category: 'Road Damage', title: 'Longitudinal Pavement Fissures', location: 'VIP Road near Kankurgachi, Kolkata', coords: [22.5802, 88.3850], severity: 'MEDIUM', status: 'RESOLVED', depth: 4.5, confidence_score: 93.8, bus_id: 'BUS-21' },
+        { id: 'RD-1009', category: 'Road Damage', title: 'Shoulder Pavement Erosion', location: 'Durgapur Expressway Approach, Dankuni', coords: [22.6850, 88.2900], severity: 'MEDIUM', status: 'RESOLVED', depth: 5.0, confidence_score: 96.5, bus_id: 'BUS-15' }
       ],
       WATERLOGGING: [
-        { id: 'RD-1003', title: 'Monsoon Surcharge & Drainage Stagnation', category: 'Waterlogging', address: 'Esplanade Tram Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'HIGH', status: 'IN PROGRESS', depth: 14.5, confidence_score: 96.2, details: 'Storm drain inlet obstructed by silt. KMC Drainage department mobilized.' },
-        { id: 'RD-1022', title: 'Underpass Submersion & Flooding', category: 'Waterlogging', address: 'Ultadanga Underpass, Kolkata', coords: [22.5932, 88.3812], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 18.0, confidence_score: 97.9, details: 'High water accumulation hindering low clearance vehicles.' }
+        { id: 'RD-1003', category: 'Waterlogging', title: 'Monsoon Surcharge & Drainage Stagnation', location: 'Esplanade Tram Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'HIGH', status: 'IN PROGRESS', depth: 14.5, confidence_score: 96.2, bus_id: 'BUS-15' },
+        { id: 'RD-1015', category: 'Waterlogging', title: 'Street Inundated near Thanthania', location: 'College Street / Thanthania, Kolkata', coords: [22.5780, 88.3640], severity: 'HIGH', status: 'UNRESOLVED', depth: 18.0, confidence_score: 97.1, bus_id: 'BUS-03' }
       ],
       TRAFFIC: [
-        { id: 'RD-1030', title: 'Automated Traffic Signal Failure', category: 'Traffic Hazards', address: 'MG Road & Chittaranjan Ave Crossing, Kolkata', coords: [22.5815, 88.3592], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 0.0, confidence_score: 99.0, details: 'Signal light outage causing intersection gridlock. Traffic squad notified.' },
-        { id: 'RD-1035', title: 'Fallen Tree Branch Obstructing Lane', category: 'Traffic Hazards', address: 'Southern Avenue, Kolkata', coords: [22.5115, 88.3582], severity: 'HIGH', status: 'IN PROGRESS', depth: 0.0, confidence_score: 95.4, details: 'Heavy branch blocking left lane. KMC Disaster Management Team on site.' }
+        { id: 'RD-1020', category: 'Traffic Hazard', title: 'Damaged Signal Pole & Debris Obstruction', location: 'Chittaranjan Avenue Crossing, Kolkata', coords: [22.5700, 88.3550], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 0.0, confidence_score: 95.8, bus_id: 'BUS-09' },
+        { id: 'RD-1022', category: 'Traffic Hazard', title: 'Broken Guardrail at Ramp Entrance', location: 'Maa Flyover Park Circus Ramp, Kolkata', coords: [22.5450, 88.3750], severity: 'HIGH', status: 'IN PROGRESS', depth: 0.0, confidence_score: 96.4, bus_id: 'BUS-11' }
       ],
       CIVIC: [
-        { id: 'RD-1040', title: 'Uncovered Manhole Vault Hazard', category: 'Civic Alerts', address: 'Gariahat Market Crossing, Kolkata', coords: [22.5198, 88.3681], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 45.0, confidence_score: 98.9, details: 'Missing iron drainage lid poses severe danger to pedestrians.' },
-        { id: 'RD-1045', title: 'Overflowing Municipal Waste Compactor', category: 'Civic Alerts', address: 'College Street, Kolkata', coords: [22.5742, 88.3635], severity: 'MEDIUM', status: 'IN PROGRESS', depth: 0.0, confidence_score: 92.5, details: 'Sanitation squad dispatched for immediate bio-waste clearance.' }
+        { id: 'RD-1004', category: 'Civic Sanitation', title: 'Manhole Frame Subsidence Hazard', location: 'Sector V Ring Road, Salt Lake, Kolkata', coords: [22.5760, 88.4320], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 12.8, confidence_score: 97.9, bus_id: 'BUS-21' },
+        { id: 'RD-1028', category: 'Civic Sanitation', title: 'Broken Streetlight Pole & Exposed Cables', location: 'Rashbehari Avenue, Gariahat, Kolkata', coords: [22.5180, 88.3660], severity: 'MEDIUM', status: 'RESOLVED', depth: 0.0, confidence_score: 92.5, bus_id: 'BUS-05' }
       ]
     };
-    finalFiltered = fallbackMap[currentKpiModalTopic] || [];
+    if (fallbackMap[currentKpiModalTopic]) {
+      finalFiltered = fallbackMap[currentKpiModalTopic];
+    }
   }
-
-  let itemsHtml = '';
 
   if (finalFiltered.length === 0) {
     itemsHtml = `

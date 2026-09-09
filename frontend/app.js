@@ -4313,7 +4313,35 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     finalFiltered = fallbackMap[currentKpiModalTopic] || [];
   }
 
-  let itemsHtml = '';
+  if (finalFiltered.length === 0 && currentKpiModalTopic !== 'ALL') {
+    const fallbackMap = {
+      POTHOLE: [
+        { id: 'RD-1042', category: 'Pothole', title: 'Severe Lane Pothole near Park Hotel', location: 'Park Street near Park Hotel, Kolkata', coords: [22.5512, 88.3524], severity: 'HIGH', status: 'IN PROGRESS', depth: 8.5, confidence_score: 98.4, bus_id: 'BUS-07' },
+        { id: 'RD-1104', category: 'Pothole', title: 'Critical Crater on Transit Junction', location: 'Esplanade Central, Kolkata', coords: [22.5645, 88.3518], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 13.0, confidence_score: 99.2, bus_id: 'BUS-07' },
+        { id: 'RD-0992', category: 'Pothole', title: 'Camac Street Road Repair', location: 'Camac Street, Kolkata', coords: [22.5468, 88.3541], severity: 'MEDIUM', status: 'RESOLVED', depth: 6.2, confidence_score: 97.5, bus_id: 'BUS-07' }
+      ],
+      ROAD_DAMAGE: [
+        { id: 'RD-1002', category: 'Road Damage', title: 'Asphalt Ravelling & Structural Cracks', location: 'AJC Bose Road Flyover Ramp, Kolkata', coords: [22.5415, 88.3578], severity: 'HIGH', status: 'IN PROGRESS', depth: 6.4, confidence_score: 94.8, bus_id: 'BUS-12' },
+        { id: 'RD-1007', category: 'Road Damage', title: 'Longitudinal Pavement Fissures', location: 'VIP Road near Kankurgachi, Kolkata', coords: [22.5802, 88.3850], severity: 'MEDIUM', status: 'RESOLVED', depth: 4.5, confidence_score: 93.8, bus_id: 'BUS-21' },
+        { id: 'RD-1009', category: 'Road Damage', title: 'Shoulder Pavement Erosion', location: 'Durgapur Expressway Approach, Dankuni', coords: [22.6850, 88.2900], severity: 'MEDIUM', status: 'RESOLVED', depth: 5.0, confidence_score: 96.5, bus_id: 'BUS-15' }
+      ],
+      WATERLOGGING: [
+        { id: 'RD-1003', category: 'Waterlogging', title: 'Monsoon Surcharge & Drainage Stagnation', location: 'Esplanade Tram Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'HIGH', status: 'IN PROGRESS', depth: 14.5, confidence_score: 96.2, bus_id: 'BUS-15' },
+        { id: 'RD-1015', category: 'Waterlogging', title: 'Street Inundated near Thanthania', location: 'College Street / Thanthania, Kolkata', coords: [22.5780, 88.3640], severity: 'HIGH', status: 'UNRESOLVED', depth: 18.0, confidence_score: 97.1, bus_id: 'BUS-03' }
+      ],
+      TRAFFIC: [
+        { id: 'RD-1020', category: 'Traffic Hazard', title: 'Damaged Signal Pole & Debris Obstruction', location: 'Chittaranjan Avenue Crossing, Kolkata', coords: [22.5700, 88.3550], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 0.0, confidence_score: 95.8, bus_id: 'BUS-09' },
+        { id: 'RD-1022', category: 'Traffic Hazard', title: 'Broken Guardrail at Ramp Entrance', location: 'Maa Flyover Park Circus Ramp, Kolkata', coords: [22.5450, 88.3750], severity: 'HIGH', status: 'IN PROGRESS', depth: 0.0, confidence_score: 96.4, bus_id: 'BUS-11' }
+      ],
+      CIVIC: [
+        { id: 'RD-1004', category: 'Civic Sanitation', title: 'Manhole Frame Subsidence Hazard', location: 'Sector V Ring Road, Salt Lake, Kolkata', coords: [22.5760, 88.4320], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 12.8, confidence_score: 97.9, bus_id: 'BUS-21' },
+        { id: 'RD-1028', category: 'Civic Sanitation', title: 'Broken Streetlight Pole & Exposed Cables', location: 'Rashbehari Avenue, Gariahat, Kolkata', coords: [22.5180, 88.3660], severity: 'MEDIUM', status: 'RESOLVED', depth: 0.0, confidence_score: 92.5, bus_id: 'BUS-05' }
+      ]
+    };
+    if (fallbackMap[currentKpiModalTopic]) {
+      finalFiltered = fallbackMap[currentKpiModalTopic];
+    }
+  }
 
   if (finalFiltered.length === 0) {
     itemsHtml = `
@@ -4370,96 +4398,6 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
               <div class="text-[10px] text-slate-400">10 FPS AI Sync</div>
             </div>
             ${roleBusActions}
-          </div>
-        </div>
-      `;
-    }).join('');
-  } else {
-    itemsHtml = finalFiltered.map(inc => {
-      const isCritical = (inc.severity || '').toUpperCase() === 'CRITICAL';
-      const isResolved = (inc.status || '').toUpperCase() === 'RESOLVED';
-      const borderColor = isResolved ? 'border-emerald-500/40' : (isCritical ? 'border-red-500/50' : 'border-navy-800');
-      const lat = Array.isArray(inc.coords) ? inc.coords[0] : (inc.latitude || inc.lat || 22.5512);
-      const lng = Array.isArray(inc.coords) ? inc.coords[1] : (inc.longitude || inc.lng || 88.3524);
-
-      const topicKey = getTopicKey(inc);
-      const topicInfo = topicDefs[topicKey] || { label: inc.category || 'Incident', icon: '📍' };
-      const photoUrl = inc.before_evidence || inc.evidence_url || getDynamicRealEvidencePhoto(inc.id, inc.category || inc.type);
-
-      // Build Role-Specific Card Action Buttons
-      let actionButtons = '';
-      if (role === 'citizen') {
-        actionButtons = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Locate hazard on public map">
-            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
-            <span>View Map</span>
-          </button>
-          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer" title="Inspect civic evidence">
-            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-            <span>Public Report &rarr;</span>
-          </button>
-        `;
-      } else if (role === 'rapid_squad') {
-        actionButtons = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Field navigation route">
-            <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
-            <span>Navigate</span>
-          </button>
-          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Update crew status">
-            <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
-            <span>Crew Dispatch</span>
-          </button>
-        `;
-      } else if (role === 'authority') {
-        actionButtons = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
-            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
-            <span>Locate</span>
-          </button>
-          <button onclick="closeKpiDrilldownModal(); openMunicipalWorkOrderPdfModal('${inc.id}')" class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
-            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-            <span>PWD Work Order &rarr;</span>
-          </button>
-        `;
-      } else {
-        // Admin
-        actionButtons = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
-            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
-            <span>Locate</span>
-          </button>
-          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
-            <i data-lucide="search" class="w-3.5 h-3.5"></i>
-            <span>Inspect & Audit &rarr;</span>
-          </button>
-        `;
-      }
-
-      return `
-        <div class="bg-navy-950 p-4 rounded-xl border ${borderColor} hover:border-cyan-400/60 transition flex flex-wrap items-center justify-between gap-3 shadow-md font-mono text-xs">
-          <div class="flex items-start gap-3.5">
-            <div class="w-16 h-16 rounded-xl bg-black border border-navy-800 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-inner">
-              <img src="${photoUrl}" alt="${inc.id}" class="w-full h-full object-cover" onerror="this.src='assets/evidence/pothole_park_street.jpg'" />
-            </div>
-            <div>
-              <div class="flex items-center flex-wrap gap-1.5 mb-1">
-                <strong class="text-white text-sm font-mono font-bold">${inc.id}</strong>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">${topicInfo.icon} ${topicInfo.label}</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getStatusBadgeClass(inc.status)}">${inc.status || 'UNRESOLVED'}</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getSeverityColorClass(inc.severity)}">${inc.severity || 'MEDIUM'}</span>
-              </div>
-              <div class="text-xs text-slate-200 font-semibold font-sans">${inc.location || inc.address || 'Kolkata Corridor'}</div>
-              <div class="text-[10.5px] text-slate-400 mt-1 font-mono">
-                <span>GPS: ${typeof lat === 'number' ? lat.toFixed(4) : lat}°, ${typeof lng === 'number' ? lng.toFixed(4) : lng}°</span> &bull; 
-                <span class="text-cyan-400 font-bold">Bus: ${inc.bus_id || inc.busId || 'BUS-07'}</span> &bull; 
-                <span>Depth: <strong class="text-amber-300 font-bold">${inc.depth || 8.5}cm</strong></span> &bull; 
-                <span>AI Confidence: <strong class="text-emerald-400 font-bold">${inc.confidence_score || inc.confidence || 98.4}%</strong></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2">
-            ${actionButtons}
           </div>
         </div>
       `;
