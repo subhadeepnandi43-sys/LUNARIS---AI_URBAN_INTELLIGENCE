@@ -302,10 +302,13 @@
         <!-- ===================================================================== -->
         <section class="flex flex-wrap items-center justify-between gap-5 bg-navy-900/70 p-5 md:p-6 rounded-2xl border border-navy-800/80 shadow-md">
           <div>
-            <h2 id="welcome-user-heading" class="text-2xl md:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              Welcome back, <span id="welcome-user-name">Admin</span> 👋
+            <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight text-white flex items-center flex-wrap gap-2" id="welcome-heading">
+              <span>Welcome back,</span>
+              <span id="welcome-user-name" class="text-cyan-400 font-extrabold">Admin</span>
+              <span id="welcome-role-pill" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 uppercase tracking-wide">HQ ADMIN</span>
+              <span>👋</span>
             </h2>
-            <p id="welcome-user-subtext" class="text-sm md:text-base text-slate-300 mt-1 font-normal">
+            <p class="text-sm md:text-base text-slate-300 mt-1 font-normal" id="welcome-user-subtitle">
               Here's what's happening across Kolkata today.
             </p>
           </div>

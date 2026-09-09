@@ -2358,25 +2358,31 @@ let currentUserProfile = null;
 
 async function initSupabaseAuth() {
   const urlParams = new URLSearchParams(window.location.search);
-  const urlRole = urlParams.get('role');
+  const rawUrlRole = urlParams.get('role');
+  const urlRole = rawUrlRole ? rawUrlRole.toLowerCase() : null;
 
   let profile = await supabaseGetUserProfile();
 
-  if (urlRole && ['admin', 'authority', 'rapid_squad', 'citizen'].includes(urlRole)) {
-    if (!profile) {
-      const defaultProfiles = {
-        admin: { email: 'commissioner@kmcgov.in', full_name: 'Palas Kumar Das', role: 'admin' },
-        authority: { email: 'chief.engineer@pwd.kolkata.gov.in', full_name: 'Chief Engineer Anirban Roy', role: 'authority' },
-        rapid_squad: { email: 'squad01.lead@kmcgov.in', full_name: 'Rapid Squad Leader K. Das', role: 'rapid_squad' },
-        citizen: { email: 'citizen.viewer@kolkata.gov', full_name: 'Citizen Observer', role: 'citizen' }
-      };
+  if (urlRole && ['admin', 'authority', 'rapid_squad', 'citizen', 'viewer'].includes(urlRole)) {
+    const normalizedRole = urlRole === 'viewer' ? 'citizen' : urlRole;
+    const defaultProfiles = {
+      admin: { email: 'commissioner@kmcgov.in', full_name: 'Admin', role: 'admin' },
+      authority: { email: 'chief.engineer@pwd.kolkata.gov.in', full_name: 'Authority', role: 'authority' },
+      rapid_squad: { email: 'squad01.lead@kmcgov.in', full_name: 'Rapid Squad', role: 'rapid_squad' },
+      citizen: { email: 'citizen.viewer@kolkata.gov', full_name: 'Viewer', role: 'citizen' }
+    };
+
+    if (!profile || profile.role !== normalizedRole) {
       profile = {
         id: `usr_${Date.now()}`,
-        user_id: `uid_${urlRole}`,
-        ...defaultProfiles[urlRole]
+        user_id: `uid_${normalizedRole}`,
+        ...defaultProfiles[normalizedRole]
       };
     } else {
-      profile.role = urlRole;
+      profile.role = normalizedRole;
+      if (!profile.full_name || profile.full_name.trim() === '' || profile.full_name === 'Palas Kumar Das' || profile.full_name === 'Citizen Observer') {
+        profile.full_name = defaultProfiles[normalizedRole].full_name;
+      }
     }
     localStorage.setItem('lunaris_auth_profile', JSON.stringify(profile));
   }
@@ -2389,7 +2395,7 @@ async function initSupabaseAuth() {
 
   currentUserProfile = profile || {
     email: 'citizen.viewer@kolkata.gov',
-    full_name: 'Citizen Observer',
+    full_name: 'Viewer',
     role: 'citizen'
   };
 
@@ -2754,17 +2760,37 @@ function updateUserProfileUI(profile) {
   const roleEl = document.getElementById('user-role-badge');
   const avatarEl = document.getElementById('user-avatar-initials');
   const dotEl = document.getElementById('user-online-dot');
-
   const welcomeNameEl = document.getElementById('welcome-user-name');
-  const welcomeHeadingEl = document.getElementById('welcome-user-heading');
-  const welcomeSubtextEl = document.getElementById('welcome-user-subtext');
+  const welcomeRolePill = document.getElementById('welcome-role-pill');
+  const welcomeSubtitleEl = document.getElementById('welcome-user-subtitle');
+  const welcomeHeadingEl = document.getElementById('welcome-heading');
+
+  const roleSubtitles = {
+    admin: "Here's what's happening across Kolkata today.",
+    authority: "Review defect approvals, active work orders, and municipal PWD operations.",
+    rapid_squad: "Field maintenance command: inspect assigned repairs and upload resolution proof.",
+    citizen: "Explore live road conditions, public safety alerts, and verified city data."
+  };
 
   if (profile) {
     const role = (profile.role || 'citizen').toLowerCase();
-    const displayName = profile.full_name || profile.name || profile.email || getRoleDefaultName(role);
+    
+    // Determine dynamic display name (who logged in)
+    let displayName = (profile.full_name || profile.name || '').trim();
+    if (!displayName) {
+      if (role === 'admin') displayName = 'Admin';
+      else if (role === 'authority') displayName = 'Authority';
+      else if (role === 'rapid_squad') displayName = 'Rapid Squad';
+      else displayName = 'Viewer';
+    }
+
     const initials = displayName
-      ? displayName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
-      : 'U';
+      .split(' ')
+      .filter(Boolean)
+      .map(n => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || (role === 'admin' ? 'AD' : (role === 'authority' ? 'AU' : (role === 'rapid_squad' ? 'RS' : 'VI')));
 
     if (nameEl) nameEl.innerText = displayName;
     if (roleEl) {
@@ -2776,14 +2802,22 @@ function updateUserProfileUI(profile) {
       dotEl.className = 'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-navy-900 animate-pulse';
     }
 
+    // Dynamic Welcome Banner: "Welcome back, [Name] [Role Badge] 👋"
     if (welcomeNameEl) {
       welcomeNameEl.innerText = displayName;
-    } else if (welcomeHeadingEl) {
-      welcomeHeadingEl.innerHTML = `Welcome back, <span id="welcome-user-name">${displayName}</span> 👋`;
+      welcomeNameEl.className = `${getRoleTextColorClass ? getRoleTextColorClass(role) : 'text-cyan-400'} font-extrabold`;
+    }
+    if (welcomeRolePill) {
+      welcomeRolePill.innerText = getRoleShortBadge ? getRoleShortBadge(role) : role.toUpperCase();
+      welcomeRolePill.className = getRolePillClass ? getRolePillClass(role) : 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 uppercase tracking-wide';
+      welcomeRolePill.classList.remove('hidden');
+    }
+    if (!welcomeNameEl && welcomeHeadingEl) {
+      welcomeHeadingEl.innerHTML = `<span>Welcome back,</span> <span id="welcome-user-name" class="${getRoleTextColorClass ? getRoleTextColorClass(role) : 'text-cyan-400'} font-extrabold">${displayName}</span> <span id="welcome-role-pill" class="${getRolePillClass ? getRolePillClass(role) : ''}">${getRoleShortBadge ? getRoleShortBadge(role) : role.toUpperCase()}</span> <span>👋</span>`;
     }
 
-    if (welcomeSubtextEl) {
-      welcomeSubtextEl.innerText = getRoleWelcomeSubtext(role);
+    if (welcomeSubtitleEl) {
+      welcomeSubtitleEl.innerText = roleSubtitles[role] || "Here's what's happening across Kolkata today.";
     }
 
     // Update modal details
@@ -2796,21 +2830,30 @@ function updateUserProfileUI(profile) {
     const mDbId = document.getElementById('auth-profile-db-id');
 
     if (mName) mName.innerText = displayName;
-    if (mEmail) mEmail.innerText = profile.email || 'user@kmcgov.in';
+    if (mEmail) mEmail.innerText = profile.email || `${role}@kmcgov.in`;
     if (mRole) mRole.innerText = getRoleLabel(role);
     if (mRoleBadge) mRoleBadge.innerText = (role || 'USER').toUpperCase();
     if (mAvatar) mAvatar.innerText = initials;
     if (mUid) mUid.innerText = profile.user_id || 'auth_active';
     if (mDbId) mDbId.innerText = profile.id || 'Supabase_Synced';
   } else {
-    if (nameEl) nameEl.innerText = 'Guest (Viewer)';
+    if (nameEl) nameEl.innerText = 'Viewer';
     if (roleEl) {
       roleEl.innerText = '👁️ Citizen Viewer';
       roleEl.className = 'text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded inline-block border border-emerald-500/30 uppercase';
     }
-    if (avatarEl) avatarEl.innerText = 'GU';
-    if (welcomeNameEl) welcomeNameEl.innerText = 'Guest';
-    if (welcomeSubtextEl) welcomeSubtextEl.innerText = "Here's what's happening across Kolkata today.";
+    if (avatarEl) avatarEl.innerText = 'VI';
+    if (welcomeNameEl) {
+      welcomeNameEl.innerText = 'Viewer';
+      welcomeNameEl.className = 'text-emerald-400 font-extrabold';
+    }
+    if (welcomeRolePill) {
+      welcomeRolePill.innerText = 'PUBLIC VIEWER';
+      welcomeRolePill.className = getRolePillClass ? getRolePillClass('citizen') : '';
+    }
+    if (welcomeSubtitleEl) {
+      welcomeSubtitleEl.innerText = roleSubtitles.citizen;
+    }
   }
 }
 
@@ -2838,6 +2881,30 @@ function getRoleLabel(role) {
   if (r === 'authority') return '🏛️ Authority (PWD)';
   if (r === 'rapid_squad') return '🔧 Rapid Squad';
   return '👁️ Citizen Viewer';
+}
+
+function getRoleShortBadge(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'HQ ADMIN';
+  if (r === 'authority') return 'PWD OPERATIONS';
+  if (r === 'rapid_squad') return 'FIELD MAINTENANCE';
+  return 'PUBLIC VIEWER';
+}
+
+function getRoleTextColorClass(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'text-cyan-400';
+  if (r === 'authority') return 'text-purple-400';
+  if (r === 'rapid_squad') return 'text-amber-400';
+  return 'text-emerald-400';
+}
+
+function getRolePillClass(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 uppercase tracking-wide';
+  if (r === 'authority') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-purple-500/40 bg-purple-500/10 text-purple-300 uppercase tracking-wide';
+  if (r === 'rapid_squad') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 uppercase tracking-wide';
+  return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 uppercase tracking-wide';
 }
 
 function getRoleBadgeClass(role) {
@@ -2945,27 +3012,33 @@ async function quickDemoLogin(role = 'admin') {
   const accounts = {
     admin: {
       email: 'commissioner@kmcgov.in',
-      name: 'Palas Kumar Das',
+      name: 'Admin',
       role: 'admin',
       roleBadge: 'ADMIN (HQ)'
     },
     authority: {
       email: 'chief.engineer@pwd.kolkata.gov.in',
-      name: 'Chief Engineer Anirban Roy',
+      name: 'Authority',
       role: 'authority',
       roleBadge: 'AUTHORITY (PWD)'
     },
     rapid_squad: {
       email: 'squad01.lead@kmcgov.in',
-      name: 'Rapid Squad Leader K. Das',
+      name: 'Rapid Squad',
       role: 'rapid_squad',
       roleBadge: 'RAPID SQUAD'
     },
     citizen: {
-      email: 'citizen.observer@kolkata.gov',
-      name: 'Citizen Observer',
+      email: 'citizen.viewer@kolkata.gov',
+      name: 'Viewer',
       role: 'citizen',
-      roleBadge: 'CITIZEN VIEWER'
+      roleBadge: 'PUBLIC VIEWER'
+    },
+    viewer: {
+      email: 'citizen.viewer@kolkata.gov',
+      name: 'Viewer',
+      role: 'citizen',
+      roleBadge: 'PUBLIC VIEWER'
     }
   };
 
@@ -2974,7 +3047,7 @@ async function quickDemoLogin(role = 'admin') {
 
   const profile = {
     id: 'usr_' + Date.now(),
-    user_id: 'uid_' + role + '_' + Date.now(),
+    user_id: 'uid_' + selected.role + '_' + Date.now(),
     email: selected.email,
     full_name: selected.name,
     role: selected.role
@@ -2986,7 +3059,7 @@ async function quickDemoLogin(role = 'admin') {
   updateUserProfileUI(currentUserProfile);
   applyRoleAccess(selected.role);
   closeAuthModal();
-  showToast('Welcome, ' + selected.name + '! Logged in as ' + selected.role.toUpperCase() + '.');
+  showToast('Welcome back, ' + selected.name + '! Logged in as ' + selected.roleBadge + '.');
 }
 
 async function handleSupabaseSignOut() {

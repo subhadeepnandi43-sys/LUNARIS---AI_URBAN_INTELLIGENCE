@@ -155,14 +155,14 @@
           </div>
         </div>
 
-        <!-- Role 4: Citizen -->
+        <!-- Role 4: Citizen / Viewer -->
         <div onclick="selectRole('citizen')" id="role-card-citizen" class="role-card cursor-pointer p-4 rounded-2xl bg-navy-950 border-2 border-navy-800 hover:border-emerald-500/50 transition-all duration-200 hover:-translate-y-1 relative flex flex-col justify-between space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-2xl">👁️</span>
             <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">PUBLIC</span>
           </div>
           <div>
-            <h3 class="text-base font-bold text-white font-mono">CITIZEN</h3>
+            <h3 class="text-base font-bold text-white font-mono">VIEWER</h3>
             <p class="text-[11px] text-emerald-300 font-medium font-mono">PUBLIC VIEWER</p>
             <p class="text-[10px] text-slate-400 mt-1">Public verified map, waterlogging & road safety alerts</p>
           </div>
@@ -245,7 +245,7 @@
               <span>🔧</span> <span>Rapid Squad</span>
             </button>
             <button type="button" onclick="quickLoginAs('citizen')" class="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold flex items-center justify-center gap-1.5 transition">
-              <span>👁️</span> <span>Citizen</span>
+              <span>👁️</span> <span>Viewer</span>
             </button>
           </div>
         </div>
@@ -276,7 +276,7 @@
         badge: 'HQ CONTROL',
         desc: 'Full municipal access & system orchestration',
         email: 'commissioner@kmcgov.in',
-        fullName: 'Palas Kumar Das',
+        fullName: 'Admin',
         borderColor: 'border-cyan-500',
         textColor: 'text-cyan-400'
       },
@@ -286,7 +286,7 @@
         badge: 'PWD OPERATIONS',
         desc: 'Defect approval, work orders, complaints & analytics',
         email: 'chief.engineer@pwd.kolkata.gov.in',
-        fullName: 'Chief Engineer Anirban Roy',
+        fullName: 'Authority',
         borderColor: 'border-purple-500',
         textColor: 'text-purple-400'
       },
@@ -296,17 +296,17 @@
         badge: 'FIELD MAINTENANCE',
         desc: 'Assigned repairs, photo evidence & fix submissions',
         email: 'squad01.lead@kmcgov.in',
-        fullName: 'Rapid Squad Leader K. Das',
+        fullName: 'Rapid Squad',
         borderColor: 'border-amber-500',
         textColor: 'text-amber-400'
       },
       citizen: {
         icon: '👁️',
-        name: 'CITIZEN',
+        name: 'VIEWER',
         badge: 'PUBLIC VIEWER',
         desc: 'Public verified map, waterlogging & road safety alerts',
         email: 'citizen.viewer@kolkata.gov',
-        fullName: 'Citizen Observer',
+        fullName: 'Viewer',
         borderColor: 'border-emerald-500',
         textColor: 'text-emerald-400'
       }
