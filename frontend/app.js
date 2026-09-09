@@ -3392,13 +3392,22 @@ function openIncidentDetails(incidentId) {
   }
 
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('z-index', '99999', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+  }
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 }
 
 function closeIncidentDetailsModal() {
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.setProperty('display', 'none', 'important');
+  }
 }
 
 /**
@@ -4146,6 +4155,9 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
 
   if (!modal || !listEl) return;
 
+  const rawType = (metricType || 'TOTAL').toUpperCase().trim();
+  const type = rawType.replace(/[\s-]/g, '_');
+
   const role = (currentUserProfile?.role || 'citizen').toLowerCase();
 
   // Update Role & Scope Badge
@@ -4166,7 +4178,7 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
   }
 
   let baseList = [];
-  let isBusMode = metricType === 'BUSES' || topicFilter === 'BUSES';
+  let isBusMode = type === 'BUSES' || type === 'ACTIVE_BUSES' || topicFilter === 'BUSES';
 
   if (isBusMode) {
     baseList = DashboardState.buses || [];
@@ -4179,39 +4191,51 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
       ? DashboardState.incidents
       : (window.REAL_MUNICIPAL_INCIDENTS || []);
 
-    if (metricType === 'UNRESOLVED') {
+    if (type === 'UNRESOLVED') {
       baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'UNRESOLVED' || (i.status || '').toUpperCase() === 'DETECTED');
       if (titleEl) titleEl.innerText = '⏳ UNRESOLVED ROAD DEFECTS';
       if (subtitleEl) subtitleEl.innerText = 'Incidents flagged by AI edge cameras awaiting municipal verification';
       if (badgeEl) badgeEl.innerText = `PENDING REVIEW (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="clock" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'IN_PROGRESS') {
+    } else if (type === 'IN_PROGRESS') {
       baseList = allInc.filter(i => {
         const s = (i.status || '').toUpperCase();
-        return s === 'IN PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED' || s === 'REPAIRING';
+        return s === 'IN PROGRESS' || s === 'IN_PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED' || s === 'REPAIRING';
       });
       if (titleEl) titleEl.innerText = '🚚 IN PROGRESS ROAD REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Active work orders assigned to KMC Rapid Squad crews undergoing repair';
       if (badgeEl) badgeEl.innerText = `CREWS ACTIVE (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'RESOLVED') {
-      baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'RESOLVED' || (i.status || '').toUpperCase() === 'COMPLETED');
+    } else if (type === 'RESOLVED' || type === 'RESOLVED_TODAY') {
+      baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'RESOLVED' || (i.status || '').toUpperCase() === 'COMPLETED' || (i.status || '').toUpperCase() === 'VERIFIED_RESOLUTION');
       if (titleEl) titleEl.innerText = '✅ RESOLVED & VERIFIED REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Completed repairs verified with before/after photographic audit proof';
       if (badgeEl) badgeEl.innerText = `VERIFIED FIXES (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
-    } else if (metricType === 'CRITICAL') {
+    } else if (type === 'CRITICAL' || type === 'CRITICAL_ALERTS') {
       baseList = allInc.filter(i => (i.severity || '').toUpperCase() === 'CRITICAL' || (i.depth && i.depth >= 10.0));
       if (titleEl) titleEl.innerText = '🚨 CRITICAL PRIORITY ROAD HAZARDS';
       if (subtitleEl) subtitleEl.innerText = 'Severe depth hazards requiring immediate emergency squad dispatch';
       if (badgeEl) badgeEl.innerText = `URGENT ACTION (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="alert-octagon" class="w-5 h-5 text-red-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'CRITICAL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     } else {
       baseList = allInc;
       if (titleEl) titleEl.innerText = '📋 ALL CITY ROAD INCIDENTS';
       if (subtitleEl) subtitleEl.innerText = 'Complete topic-wise registry of all road defects detected across Kolkata';
       if (badgeEl) badgeEl.innerText = `TOTAL INCIDENTS (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="layers" class="w-5 h-5 text-blue-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'ALL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     }
   }
 
@@ -4286,33 +4310,6 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     finalFiltered = baseList.filter(item => getTopicKey(item) === currentKpiModalTopic);
   }
 
-  // Fallback realistic Kolkata topic incidents if list is empty
-  if (finalFiltered.length === 0 && !isBusMode && currentKpiModalTopic !== 'ALL') {
-    const fallbackMap = {
-      POTHOLE: [
-        { id: 'RD-1042', title: 'Severe Lane Pothole near Park Hotel', category: 'Pothole', address: 'Park Street near Park Hotel, Kolkata', coords: [22.5512, 88.3524], severity: 'HIGH', status: 'IN PROGRESS', depth: 8.5, confidence_score: 98.4, details: 'Sharp impact asphalt crater detected in eastbound fast lane. Squad-01 dispatched.' },
-        { id: 'RD-1104', title: 'Critical Crater on Transit Junction', category: 'Pothole', address: 'Esplanade Central Bus Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 13.0, confidence_score: 99.2, details: 'Large deep crater causing immediate vehicle deceleration and wheel impact hazards.' }
-      ],
-      ROAD_DAMAGE: [
-        { id: 'RD-1002', title: 'Asphalt Ravelling & Structural Cracks', category: 'Road Damage', address: 'AJC Bose Road Flyover Ramp, Kolkata', coords: [22.5415, 88.3578], severity: 'HIGH', status: 'IN PROGRESS', depth: 6.4, confidence_score: 94.8, details: 'Heavy vehicle surface wear with loose gravel. Work Order WO-8812 assigned.' },
-        { id: 'RD-1015', title: 'Concrete Bitumen Fissure', category: 'Road Damage', address: 'EM Bypass Near Science City, Kolkata', coords: [22.5401, 88.3965], severity: 'MEDIUM', status: 'UNRESOLVED', depth: 5.2, confidence_score: 93.1, details: 'Longitudinal pavement crack along bus rapid transit lane.' }
-      ],
-      WATERLOGGING: [
-        { id: 'RD-1003', title: 'Monsoon Surcharge & Drainage Stagnation', category: 'Waterlogging', address: 'Esplanade Tram Terminus, Kolkata', coords: [22.5645, 88.3518], severity: 'HIGH', status: 'IN PROGRESS', depth: 14.5, confidence_score: 96.2, details: 'Storm drain inlet obstructed by silt. KMC Drainage department mobilized.' },
-        { id: 'RD-1022', title: 'Underpass Submersion & Flooding', category: 'Waterlogging', address: 'Ultadanga Underpass, Kolkata', coords: [22.5932, 88.3812], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 18.0, confidence_score: 97.9, details: 'High water accumulation hindering low clearance vehicles.' }
-      ],
-      TRAFFIC: [
-        { id: 'RD-1030', title: 'Automated Traffic Signal Failure', category: 'Traffic Hazards', address: 'MG Road & Chittaranjan Ave Crossing, Kolkata', coords: [22.5815, 88.3592], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 0.0, confidence_score: 99.0, details: 'Signal light outage causing intersection gridlock. Traffic squad notified.' },
-        { id: 'RD-1035', title: 'Fallen Tree Branch Obstructing Lane', category: 'Traffic Hazards', address: 'Southern Avenue, Kolkata', coords: [22.5115, 88.3582], severity: 'HIGH', status: 'IN PROGRESS', depth: 0.0, confidence_score: 95.4, details: 'Heavy branch blocking left lane. KMC Disaster Management Team on site.' }
-      ],
-      CIVIC: [
-        { id: 'RD-1040', title: 'Uncovered Manhole Vault Hazard', category: 'Civic Alerts', address: 'Gariahat Market Crossing, Kolkata', coords: [22.5198, 88.3681], severity: 'CRITICAL', status: 'UNRESOLVED', depth: 45.0, confidence_score: 98.9, details: 'Missing iron drainage lid poses severe danger to pedestrians.' },
-        { id: 'RD-1045', title: 'Overflowing Municipal Waste Compactor', category: 'Civic Alerts', address: 'College Street, Kolkata', coords: [22.5742, 88.3635], severity: 'MEDIUM', status: 'IN PROGRESS', depth: 0.0, confidence_score: 92.5, details: 'Sanitation squad dispatched for immediate bio-waste clearance.' }
-      ]
-    };
-    finalFiltered = fallbackMap[currentKpiModalTopic] || [];
-  }
-
   if (finalFiltered.length === 0 && currentKpiModalTopic !== 'ALL') {
     const fallbackMap = {
       POTHOLE: [
@@ -4343,6 +4340,7 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     }
   }
 
+  let itemsHtml = '';
   if (finalFiltered.length === 0) {
     itemsHtml = `
       <div class="p-8 text-center bg-navy-950 rounded-xl border border-navy-800 text-slate-400 font-sans">
@@ -4353,24 +4351,26 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     `;
   } else if (isBusMode || currentKpiModalTopic === 'BUSES') {
     itemsHtml = finalFiltered.map(bus => {
+      const busId = bus.id || bus.bus_code || 'BUS-01';
+      const cleanBusNum = String(busId).replace('BUS-', '');
       const lat = Array.isArray(bus.coords) ? bus.coords[0] : (bus.latitude || 22.5512);
       const lng = Array.isArray(bus.coords) ? bus.coords[1] : (bus.longitude || 88.3524);
 
       let roleBusActions = '';
       if (role === 'citizen') {
         roleBusActions = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${bus.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${busId}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
             <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
             <span>Track Bus</span>
           </button>
         `;
       } else {
         roleBusActions = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${bus.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${busId}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
             <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
             <span>Locate</span>
           </button>
-          <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${bus.id}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${busId}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition cursor-pointer">
             <i data-lucide="video" class="w-3.5 h-3.5"></i>
             <span>Live Feed</span>
           </button>
@@ -4381,11 +4381,11 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
         <div class="bg-navy-950 p-4 rounded-xl border border-navy-800 hover:border-cyan-500/50 transition flex flex-wrap items-center justify-between gap-3 shadow-md font-mono text-xs">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm font-mono">
-              ${(bus.id || '').replace('BUS-', '')}
+              ${cleanBusNum}
             </div>
             <div>
               <div class="text-white font-bold flex items-center gap-2 text-xs font-mono">
-                <span>${bus.id}</span>
+                <span>${busId}</span>
                 <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">🟢 ${bus.status || 'ACTIVE'}</span>
               </div>
               <div class="text-[11px] text-slate-300 mt-0.5 font-sans">${bus.route || 'Kolkata Corridor'} &bull; Plate: <strong class="text-slate-200">${bus.plate || 'WB-04-E-2910'}</strong></div>
@@ -4402,7 +4402,96 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
         </div>
       `;
     }).join('');
-  }
+  } else {
+    itemsHtml = finalFiltered.map(inc => {
+      const isCritical = (inc.severity || '').toUpperCase() === 'CRITICAL';
+      const isResolved = (inc.status || '').toUpperCase() === 'RESOLVED';
+      const borderColor = isResolved ? 'border-emerald-500/40' : (isCritical ? 'border-red-500/50' : 'border-navy-800');
+      const lat = Array.isArray(inc.coords) ? inc.coords[0] : (inc.latitude || inc.lat || 22.5512);
+      const lng = Array.isArray(inc.coords) ? inc.coords[1] : (inc.longitude || inc.lng || 88.3524);
+
+      const topicKey = getTopicKey(inc);
+      const topicInfo = topicDefs[topicKey] || { label: inc.category || 'Incident', icon: '📍' };
+      const photoUrl = inc.before_evidence || inc.evidence_url || getDynamicRealEvidencePhoto(inc.id, inc.category || inc.type);
+
+      // Build Role-Specific Card Action Buttons
+      let actionButtons = '';
+      if (role === 'citizen') {
+        actionButtons = `
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Locate hazard on public map">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+            <span>View Map</span>
+          </button>
+          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer" title="Inspect civic evidence">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+            <span>Public Report &rarr;</span>
+          </button>
+        `;
+      } else if (role === 'rapid_squad') {
+        actionButtons = `
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Field navigation route">
+            <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+            <span>Navigate</span>
+          </button>
+          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer" title="Update crew status">
+            <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+            <span>Crew Dispatch</span>
+          </button>
+        `;
+      } else if (role === 'authority') {
+        actionButtons = `
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+            <span>Locate</span>
+          </button>
+          <button onclick="closeKpiDrilldownModal(); openMunicipalWorkOrderPdfModal('${inc.id}')" class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+            <span>PWD Work Order &rarr;</span>
+          </button>
+        `;
+      } else {
+        // Admin
+        actionButtons = `
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 17, '${inc.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+            <span>Locate</span>
+          </button>
+          <button onclick="closeKpiDrilldownModal(); openIncidentDetails('${inc.id}')" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            <span>Inspect & Audit &rarr;</span>
+          </button>
+        `;
+      }
+
+      return `
+        <div class="bg-navy-950 p-4 rounded-xl border ${borderColor} hover:border-cyan-400/60 transition flex flex-wrap items-center justify-between gap-3 shadow-md font-mono text-xs">
+          <div class="flex items-start gap-3.5">
+            <div class="w-16 h-16 rounded-xl bg-black border border-navy-800 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-inner">
+              <img src="${photoUrl}" alt="${inc.id}" class="w-full h-full object-cover" onerror="this.src='assets/evidence/pothole_park_street.jpg'" />
+            </div>
+            <div>
+              <div class="flex items-center flex-wrap gap-1.5 mb-1">
+                <strong class="text-white text-sm font-mono font-bold">${inc.id}</strong>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">${topicInfo.icon} ${topicInfo.label}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getStatusBadgeClass(inc.status)}">${inc.status || 'UNRESOLVED'}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getSeverityColorClass(inc.severity)}">${inc.severity || 'MEDIUM'}</span>
+              </div>
+              <div class="text-xs text-slate-200 font-semibold font-sans">${inc.location || inc.address || 'Kolkata Corridor'}</div>
+              <div class="text-[10.5px] text-slate-400 mt-1 font-mono">
+                <span>GPS: ${typeof lat === 'number' ? lat.toFixed(4) : lat}°, ${typeof lng === 'number' ? lng.toFixed(4) : lng}°</span> &bull; 
+                <span class="text-cyan-400 font-bold">Bus: ${inc.bus_id || inc.busId || 'BUS-07'}</span> &bull; 
+                <span>Depth: <strong class="text-amber-300 font-bold">${inc.depth || 8.5}cm</strong></span> &bull; 
+                <span>AI Confidence: <strong class="text-emerald-400 font-bold">${inc.confidence_score || inc.confidence || 98.4}%</strong></span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              ${actionButtons}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
 
   listEl.innerHTML = itemsHtml;
   modal.classList.remove('hidden');

@@ -3392,13 +3392,22 @@ function openIncidentDetails(incidentId) {
   }
 
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('z-index', '99999', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+  }
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 }
 
 function closeIncidentDetailsModal() {
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.setProperty('display', 'none', 'important');
+  }
 }
 
 /**
@@ -4146,6 +4155,9 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
 
   if (!modal || !listEl) return;
 
+  const rawType = (metricType || 'TOTAL').toUpperCase().trim();
+  const type = rawType.replace(/[\s-]/g, '_');
+
   const role = (currentUserProfile?.role || 'citizen').toLowerCase();
 
   // Update Role & Scope Badge
@@ -4166,7 +4178,7 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
   }
 
   let baseList = [];
-  let isBusMode = metricType === 'BUSES' || topicFilter === 'BUSES';
+  let isBusMode = type === 'BUSES' || type === 'ACTIVE_BUSES' || topicFilter === 'BUSES';
 
   if (isBusMode) {
     baseList = DashboardState.buses || [];
@@ -4179,39 +4191,51 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
       ? DashboardState.incidents
       : (window.REAL_MUNICIPAL_INCIDENTS || []);
 
-    if (metricType === 'UNRESOLVED') {
+    if (type === 'UNRESOLVED') {
       baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'UNRESOLVED' || (i.status || '').toUpperCase() === 'DETECTED');
       if (titleEl) titleEl.innerText = '⏳ UNRESOLVED ROAD DEFECTS';
       if (subtitleEl) subtitleEl.innerText = 'Incidents flagged by AI edge cameras awaiting municipal verification';
       if (badgeEl) badgeEl.innerText = `PENDING REVIEW (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="clock" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'IN_PROGRESS') {
+    } else if (type === 'IN_PROGRESS') {
       baseList = allInc.filter(i => {
         const s = (i.status || '').toUpperCase();
-        return s === 'IN PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED' || s === 'REPAIRING';
+        return s === 'IN PROGRESS' || s === 'IN_PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED' || s === 'REPAIRING';
       });
       if (titleEl) titleEl.innerText = '🚚 IN PROGRESS ROAD REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Active work orders assigned to KMC Rapid Squad crews undergoing repair';
       if (badgeEl) badgeEl.innerText = `CREWS ACTIVE (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'RESOLVED') {
-      baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'RESOLVED' || (i.status || '').toUpperCase() === 'COMPLETED');
+    } else if (type === 'RESOLVED' || type === 'RESOLVED_TODAY') {
+      baseList = allInc.filter(i => (i.status || '').toUpperCase() === 'RESOLVED' || (i.status || '').toUpperCase() === 'COMPLETED' || (i.status || '').toUpperCase() === 'VERIFIED_RESOLUTION');
       if (titleEl) titleEl.innerText = '✅ RESOLVED & VERIFIED REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Completed repairs verified with before/after photographic audit proof';
       if (badgeEl) badgeEl.innerText = `VERIFIED FIXES (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
-    } else if (metricType === 'CRITICAL') {
+    } else if (type === 'CRITICAL' || type === 'CRITICAL_ALERTS') {
       baseList = allInc.filter(i => (i.severity || '').toUpperCase() === 'CRITICAL' || (i.depth && i.depth >= 10.0));
       if (titleEl) titleEl.innerText = '🚨 CRITICAL PRIORITY ROAD HAZARDS';
       if (subtitleEl) subtitleEl.innerText = 'Severe depth hazards requiring immediate emergency squad dispatch';
       if (badgeEl) badgeEl.innerText = `URGENT ACTION (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="alert-octagon" class="w-5 h-5 text-red-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'CRITICAL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     } else {
       baseList = allInc;
       if (titleEl) titleEl.innerText = '📋 ALL CITY ROAD INCIDENTS';
       if (subtitleEl) subtitleEl.innerText = 'Complete topic-wise registry of all road defects detected across Kolkata';
       if (badgeEl) badgeEl.innerText = `TOTAL INCIDENTS (${baseList.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="layers" class="w-5 h-5 text-blue-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'ALL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     }
   }
 
@@ -4316,6 +4340,7 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     }
   }
 
+  let itemsHtml = '';
   if (finalFiltered.length === 0) {
     itemsHtml = `
       <div class="p-8 text-center bg-navy-950 rounded-xl border border-navy-800 text-slate-400 font-sans">
@@ -4326,24 +4351,26 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
     `;
   } else if (isBusMode || currentKpiModalTopic === 'BUSES') {
     itemsHtml = finalFiltered.map(bus => {
+      const busId = bus.id || bus.bus_code || 'BUS-01';
+      const cleanBusNum = String(busId).replace('BUS-', '');
       const lat = Array.isArray(bus.coords) ? bus.coords[0] : (bus.latitude || 22.5512);
       const lng = Array.isArray(bus.coords) ? bus.coords[1] : (bus.longitude || 88.3524);
 
       let roleBusActions = '';
       if (role === 'citizen') {
         roleBusActions = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${bus.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${busId}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
             <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
             <span>Track Bus</span>
           </button>
         `;
       } else {
         roleBusActions = `
-          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${bus.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${busId}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition cursor-pointer">
             <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
             <span>Locate</span>
           </button>
-          <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${bus.id}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition cursor-pointer">
+          <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${busId}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition cursor-pointer">
             <i data-lucide="video" class="w-3.5 h-3.5"></i>
             <span>Live Feed</span>
           </button>
@@ -4354,11 +4381,11 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
         <div class="bg-navy-950 p-4 rounded-xl border border-navy-800 hover:border-cyan-500/50 transition flex flex-wrap items-center justify-between gap-3 shadow-md font-mono text-xs">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm font-mono">
-              ${(bus.id || '').replace('BUS-', '')}
+              ${cleanBusNum}
             </div>
             <div>
               <div class="text-white font-bold flex items-center gap-2 text-xs font-mono">
-                <span>${bus.id}</span>
+                <span>${busId}</span>
                 <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">🟢 ${bus.status || 'ACTIVE'}</span>
               </div>
               <div class="text-[11px] text-slate-300 mt-0.5 font-sans">${bus.route || 'Kolkata Corridor'} &bull; Plate: <strong class="text-slate-200">${bus.plate || 'WB-04-E-2910'}</strong></div>
@@ -4457,15 +4484,14 @@ function openKpiDrilldownModal(metricType, topicFilter = 'ALL') {
                 <span>AI Confidence: <strong class="text-emerald-400 font-bold">${inc.confidence_score || inc.confidence || 98.4}%</strong></span>
               </div>
             </div>
-          </div>
 
-          <div class="flex items-center gap-2">
-            ${actionButtons}
+            <div class="flex items-center gap-2">
+              ${actionButtons}
+            </div>
           </div>
-        </div>
-      `;
-    }).join('');
-  }
+        `;
+      }).join('');
+    }
 
   listEl.innerHTML = itemsHtml;
   modal.classList.remove('hidden');

@@ -310,19 +310,15 @@
             </p>
           </div>
 
-          <!-- 3 Primary Actions: Live Feed, Detect Incident, Add Camera -->
+          <!-- Primary Actions: Add Camera, Sync Cloud -->
           <div class="flex items-center flex-wrap gap-3 font-mono text-xs sm:text-sm">
-            <button onclick="openLiveCameraStream('BUS-07')" class="flex items-center gap-2 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-md shadow-cyan-500/20 transition active:scale-95 border border-cyan-400/30">
-              <i data-lucide="video" class="w-4 h-4"></i>
-              <span>LIVE FEED</span>
-            </button>
-            <button onclick="openCreateIncidentModal()" class="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-md shadow-emerald-500/20 transition active:scale-95 border border-emerald-400/30">
-              <i data-lucide="plus-circle" class="w-4 h-4"></i>
-              <span>DETECT INCIDENT</span>
-            </button>
             <button onclick="openAddCameraModal()" class="flex items-center gap-2 px-4 py-2.5 bg-navy-850 hover:bg-navy-800 text-slate-200 hover:text-white rounded-xl font-bold border border-navy-750 transition active:scale-95 shadow-sm">
               <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i>
               <span>ADD CAMERA</span>
+            </button>
+            <button onclick="syncSupabaseData(); showToast('☁️ Pulling latest updates & telemetry from Supabase Cloud...')" class="flex items-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/40 text-cyan-300 rounded-xl font-bold border border-cyan-500/40 transition active:scale-95 shadow-sm" title="Pull latest updates made from your friend's laptop or cloud database">
+              <i data-lucide="cloud-download" class="w-4 h-4 text-cyan-300"></i>
+              <span>SYNC CLOUD</span>
             </button>
           </div>
         </section>
@@ -1479,7 +1475,7 @@
   </div>
 
   <!-- Modal 7: KPI Drilldown Modal (Detailed Metric Inspector) -->
-  <div id="kpi-drilldown-modal" style="z-index: 99999;" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-[99999] hidden flex items-center justify-center p-4 overflow-y-auto">
+  <div id="kpi-drilldown-modal" style="z-index: 99999;" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-[99999] hidden flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target === this) closeKpiDrilldownModal()">
     <div class="bg-navy-900 border border-navy-750 rounded-2xl max-w-4xl w-full p-6 shadow-2xl animate-scaleUp font-mono text-xs">
       
       <!-- Modal Header -->
@@ -2115,6 +2111,18 @@
               window.openKpiDrilldownModal(type);
             }
           });
+        }
+      });
+
+      // Global keyboard shortcut: Escape to close modals
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (typeof window.closeKpiDrilldownModal === 'function') {
+            window.closeKpiDrilldownModal();
+          }
+          if (typeof window.closeIncidentDetailsModal === 'function') {
+            window.closeIncidentDetailsModal();
+          }
         }
       });
     });
