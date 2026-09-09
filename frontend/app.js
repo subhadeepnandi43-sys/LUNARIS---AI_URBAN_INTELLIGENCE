@@ -2906,25 +2906,31 @@ let currentUserProfile = null;
 
 async function initSupabaseAuth() {
   const urlParams = new URLSearchParams(window.location.search);
-  const urlRole = urlParams.get('role');
+  const rawUrlRole = urlParams.get('role');
+  const urlRole = rawUrlRole ? rawUrlRole.toLowerCase() : null;
 
   let profile = await supabaseGetUserProfile();
 
-  if (urlRole && ['admin', 'authority', 'rapid_squad', 'citizen'].includes(urlRole)) {
-    if (!profile) {
-      const defaultProfiles = {
-        admin: { email: 'commissioner@kmcgov.in', full_name: 'Palas Kumar Das', role: 'admin' },
-        authority: { email: 'chief.engineer@pwd.kolkata.gov.in', full_name: 'Chief Engineer Anirban Roy', role: 'authority' },
-        rapid_squad: { email: 'squad01.lead@kmcgov.in', full_name: 'Rapid Squad Leader K. Das', role: 'rapid_squad' },
-        citizen: { email: 'citizen.viewer@kolkata.gov', full_name: 'Citizen Observer', role: 'citizen' }
-      };
+  if (urlRole && ['admin', 'authority', 'rapid_squad', 'citizen', 'viewer'].includes(urlRole)) {
+    const normalizedRole = urlRole === 'viewer' ? 'citizen' : urlRole;
+    const defaultProfiles = {
+      admin: { email: 'commissioner@kmcgov.in', full_name: 'Admin', role: 'admin' },
+      authority: { email: 'chief.engineer@pwd.kolkata.gov.in', full_name: 'Authority', role: 'authority' },
+      rapid_squad: { email: 'squad01.lead@kmcgov.in', full_name: 'Rapid Squad', role: 'rapid_squad' },
+      citizen: { email: 'citizen.viewer@kolkata.gov', full_name: 'Viewer', role: 'citizen' }
+    };
+
+    if (!profile || profile.role !== normalizedRole) {
       profile = {
         id: `usr_${Date.now()}`,
-        user_id: `uid_${urlRole}`,
-        ...defaultProfiles[urlRole]
+        user_id: `uid_${normalizedRole}`,
+        ...defaultProfiles[normalizedRole]
       };
     } else {
-      profile.role = urlRole;
+      profile.role = normalizedRole;
+      if (!profile.full_name || profile.full_name.trim() === '' || profile.full_name === 'Palas Kumar Das' || profile.full_name === 'Citizen Observer') {
+        profile.full_name = defaultProfiles[normalizedRole].full_name;
+      }
     }
     localStorage.setItem('lunaris_auth_profile', JSON.stringify(profile));
   }
@@ -3167,14 +3173,39 @@ function updateUserProfileUI(profile) {
   const roleEl = document.getElementById('user-role-badge');
   const avatarEl = document.getElementById('user-avatar-initials');
   const dotEl = document.getElementById('user-online-dot');
+  const welcomeNameEl = document.getElementById('welcome-user-name');
+  const welcomeRolePill = document.getElementById('welcome-role-pill');
+  const welcomeSubtitleEl = document.getElementById('welcome-user-subtitle');
+  const welcomeHeadingEl = document.getElementById('welcome-heading');
+
+  const roleSubtitles = {
+    admin: "Here's what's happening across Kolkata today.",
+    authority: "Review defect approvals, active work orders, and municipal PWD operations.",
+    rapid_squad: "Field maintenance command: inspect assigned repairs and upload resolution proof.",
+    citizen: "Explore live road conditions, public safety alerts, and verified city data."
+  };
 
   if (profile) {
     const role = (profile.role || 'citizen').toLowerCase();
-    const initials = profile.full_name
-      ? profile.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-      : 'U';
+    
+    // Determine dynamic display name (who logged in)
+    let displayName = (profile.full_name || '').trim();
+    if (!displayName) {
+      if (role === 'admin') displayName = 'Admin';
+      else if (role === 'authority') displayName = 'Authority';
+      else if (role === 'rapid_squad') displayName = 'Rapid Squad';
+      else displayName = 'Viewer';
+    }
 
-    if (nameEl) nameEl.innerText = profile.full_name || profile.email || 'User';
+    const initials = displayName
+      .split(' ')
+      .filter(Boolean)
+      .map(n => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || (role === 'admin' ? 'AD' : (role === 'authority' ? 'AU' : (role === 'rapid_squad' ? 'RS' : 'VI')));
+
+    if (nameEl) nameEl.innerText = displayName;
     if (roleEl) {
       roleEl.innerText = getRoleLabel(role);
       roleEl.className = getRoleBadgeClass(role);
@@ -3182,6 +3213,24 @@ function updateUserProfileUI(profile) {
     if (avatarEl) avatarEl.innerText = initials;
     if (dotEl) {
       dotEl.className = 'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-navy-900 animate-pulse';
+    }
+
+    // Dynamic Welcome Banner: "Welcome back, [Name] [Role Badge] 👋"
+    if (welcomeNameEl) {
+      welcomeNameEl.innerText = displayName;
+      welcomeNameEl.className = `${getRoleTextColorClass(role)} font-extrabold`;
+    }
+    if (welcomeRolePill) {
+      welcomeRolePill.innerText = getRoleShortBadge(role);
+      welcomeRolePill.className = getRolePillClass(role);
+      welcomeRolePill.classList.remove('hidden');
+    }
+    if (!welcomeNameEl && welcomeHeadingEl) {
+      welcomeHeadingEl.innerHTML = `<span>Welcome back,</span> <span id="welcome-user-name" class="${getRoleTextColorClass(role)} font-extrabold">${displayName}</span> <span id="welcome-role-pill" class="${getRolePillClass(role)}">${getRoleShortBadge(role)}</span> <span>👋</span>`;
+    }
+
+    if (welcomeSubtitleEl) {
+      welcomeSubtitleEl.innerText = roleSubtitles[role] || "Here's what's happening across Kolkata today.";
     }
 
     // Update modal details
@@ -3192,19 +3241,30 @@ function updateUserProfileUI(profile) {
     const mUid = document.getElementById('auth-profile-uid');
     const mDbId = document.getElementById('auth-profile-db-id');
 
-    if (mName) mName.innerText = profile.full_name || profile.email;
-    if (mEmail) mEmail.innerText = profile.email || 'user@kmcgov.in';
+    if (mName) mName.innerText = displayName;
+    if (mEmail) mEmail.innerText = profile.email || `${role}@kmcgov.in`;
     if (mRole) mRole.innerText = getRoleLabel(role);
     if (mAvatar) mAvatar.innerText = initials;
     if (mUid) mUid.innerText = profile.user_id || 'auth_active';
     if (mDbId) mDbId.innerText = profile.id || 'Supabase_Synced';
   } else {
-    if (nameEl) nameEl.innerText = 'Guest (Viewer)';
+    if (nameEl) nameEl.innerText = 'Viewer';
     if (roleEl) {
       roleEl.innerText = '👁️ Citizen Viewer';
       roleEl.className = 'text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded inline-block border border-emerald-500/30 uppercase';
     }
-    if (avatarEl) avatarEl.innerText = 'GU';
+    if (avatarEl) avatarEl.innerText = 'VI';
+    if (welcomeNameEl) {
+      welcomeNameEl.innerText = 'Viewer';
+      welcomeNameEl.className = 'text-emerald-400 font-extrabold';
+    }
+    if (welcomeRolePill) {
+      welcomeRolePill.innerText = 'PUBLIC VIEWER';
+      welcomeRolePill.className = getRolePillClass('citizen');
+    }
+    if (welcomeSubtitleEl) {
+      welcomeSubtitleEl.innerText = roleSubtitles.citizen;
+    }
   }
 }
 
@@ -3214,6 +3274,30 @@ function getRoleLabel(role) {
   if (r === 'authority') return '🏛️ Authority (PWD)';
   if (r === 'rapid_squad') return '🔧 Rapid Squad';
   return '👁️ Citizen Viewer';
+}
+
+function getRoleShortBadge(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'HQ ADMIN';
+  if (r === 'authority') return 'PWD OPERATIONS';
+  if (r === 'rapid_squad') return 'FIELD MAINTENANCE';
+  return 'PUBLIC VIEWER';
+}
+
+function getRoleTextColorClass(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'text-cyan-400';
+  if (r === 'authority') return 'text-purple-400';
+  if (r === 'rapid_squad') return 'text-amber-400';
+  return 'text-emerald-400';
+}
+
+function getRolePillClass(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'admin') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 uppercase tracking-wide';
+  if (r === 'authority') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-purple-500/40 bg-purple-500/10 text-purple-300 uppercase tracking-wide';
+  if (r === 'rapid_squad') return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 uppercase tracking-wide';
+  return 'text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 uppercase tracking-wide';
 }
 
 function getRoleBadgeClass(role) {
@@ -3321,27 +3405,33 @@ async function quickDemoLogin(role = 'admin') {
   const accounts = {
     admin: {
       email: 'commissioner@kmcgov.in',
-      name: 'Palas Kumar Das',
+      name: 'Admin',
       role: 'admin',
       roleBadge: 'ADMIN (HQ)'
     },
     authority: {
       email: 'chief.engineer@pwd.kolkata.gov.in',
-      name: 'Chief Engineer Anirban Roy',
+      name: 'Authority',
       role: 'authority',
       roleBadge: 'AUTHORITY (PWD)'
     },
     rapid_squad: {
       email: 'squad01.lead@kmcgov.in',
-      name: 'Rapid Squad Leader K. Das',
+      name: 'Rapid Squad',
       role: 'rapid_squad',
       roleBadge: 'RAPID SQUAD'
     },
     citizen: {
-      email: 'citizen.observer@kolkata.gov',
-      name: 'Citizen Observer',
+      email: 'citizen.viewer@kolkata.gov',
+      name: 'Viewer',
       role: 'citizen',
-      roleBadge: 'CITIZEN VIEWER'
+      roleBadge: 'PUBLIC VIEWER'
+    },
+    viewer: {
+      email: 'citizen.viewer@kolkata.gov',
+      name: 'Viewer',
+      role: 'citizen',
+      roleBadge: 'PUBLIC VIEWER'
     }
   };
 
@@ -3350,7 +3440,7 @@ async function quickDemoLogin(role = 'admin') {
 
   const profile = {
     id: 'usr_' + Date.now(),
-    user_id: 'uid_' + role + '_' + Date.now(),
+    user_id: 'uid_' + selected.role + '_' + Date.now(),
     email: selected.email,
     full_name: selected.name,
     role: selected.role
@@ -3362,7 +3452,7 @@ async function quickDemoLogin(role = 'admin') {
   updateUserProfileUI(currentUserProfile);
   applyRoleAccess(selected.role);
   closeAuthModal();
-  showToast('Welcome, ' + selected.name + '! Logged in as ' + selected.role.toUpperCase() + '.');
+  showToast('Welcome back, ' + selected.name + '! Logged in as ' + selected.roleBadge + '.');
 }
 
 async function handleSupabaseSignOut() {
@@ -4057,13 +4147,22 @@ function openIncidentDetails(incidentId) {
   }
 
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('z-index', '99999', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+  }
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 }
 
 function closeIncidentDetailsModal() {
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.setProperty('display', 'none', 'important');
+  }
 }
 
 /**
@@ -4803,19 +4902,27 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
 
   if (!modal || !listEl) return;
 
+  const rawType = (metricType || 'TOTAL').toUpperCase().trim();
+  const type = rawType.replace(/[\s-]/g, '_');
+
   // Highlight active switcher tab inside modal
   const tabIds = {
     'TOTAL': 'kpi-tab-total',
     'CRITICAL': 'kpi-tab-critical',
+    'CRITICAL_ALERTS': 'kpi-tab-critical',
     'BUSES': 'kpi-tab-buses',
+    'ACTIVE_BUSES': 'kpi-tab-buses',
     'IN_PROGRESS': 'kpi-tab-inprogress',
-    'RESOLVED': 'kpi-tab-resolved'
+    'RESOLVED': 'kpi-tab-resolved',
+    'RESOLVED_TODAY': 'kpi-tab-resolved'
   };
 
-  Object.entries(tabIds).forEach(([key, elemId]) => {
+  const activeTabTarget = tabIds[type] || 'kpi-tab-total';
+
+  ['kpi-tab-total', 'kpi-tab-critical', 'kpi-tab-buses', 'kpi-tab-inprogress', 'kpi-tab-resolved'].forEach((elemId) => {
     const tabEl = document.getElementById(elemId);
     if (!tabEl) return;
-    if (key === metricType) {
+    if (elemId === activeTabTarget) {
       tabEl.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap bg-blue-500/25 text-white border border-blue-400 shadow-sm cursor-pointer';
     } else {
       tabEl.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap bg-navy-800 hover:bg-navy-750 text-slate-300 hover:text-white border border-navy-700 cursor-pointer';
@@ -4831,7 +4938,7 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
     ? DashboardState.incidents 
     : (Array.isArray(REAL_MUNICIPAL_INCIDENTS) ? REAL_MUNICIPAL_INCIDENTS : []);
 
-  if (metricType === 'BUSES') {
+  if (type === 'BUSES' || type === 'ACTIVE_BUSES') {
     if (titleEl) titleEl.innerText = '🚌 ACTIVE TRANSIT FLEET TELEMETRY';
     if (subtitleEl) subtitleEl.innerText = `Showing all ${allBuses.length} live public transit buses & camera streams in Kolkata`;
     if (badgeEl) badgeEl.innerText = `ACTIVE SENSORS (${allBuses.length})`;
@@ -4890,35 +4997,57 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
     // Incident Filter Modes: TOTAL, UNRESOLVED, IN_PROGRESS, RESOLVED, CRITICAL
     let filtered = allIncidents;
 
-    if (metricType === 'UNRESOLVED') {
-      filtered = allIncidents.filter(i => (i.status || '').toUpperCase() === 'UNRESOLVED' || (i.status || '').toUpperCase() === 'DETECTED');
+    if (type === 'UNRESOLVED') {
+      filtered = allIncidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'UNRESOLVED' || s === 'DETECTED';
+      });
       if (titleEl) titleEl.innerText = '⏳ UNRESOLVED ROAD DEFECTS (PENDING REVIEW)';
       if (subtitleEl) subtitleEl.innerText = 'Incidents flagged by AI edge cameras awaiting official municipal verification';
       if (badgeEl) badgeEl.innerText = `PENDING REVIEW (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="clock" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'IN_PROGRESS') {
-      filtered = allIncidents.filter(i => (i.status || '').toUpperCase() === 'IN PROGRESS' || (i.status || '').toUpperCase() === 'ASSIGNED' || (i.status || '').toUpperCase() === 'VERIFIED');
+    } else if (type === 'IN_PROGRESS') {
+      filtered = allIncidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'IN PROGRESS' || s === 'IN_PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED';
+      });
       if (titleEl) titleEl.innerText = '🚚 IN PROGRESS ROAD REPAIRS (CREWS DEPLOYED)';
       if (subtitleEl) subtitleEl.innerText = 'Active work orders assigned to KMC Rapid Squads currently undergoing repair';
       if (badgeEl) badgeEl.innerText = `CREWS ACTIVE (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'RESOLVED') {
-      filtered = allIncidents.filter(i => (i.status || '').toUpperCase() === 'RESOLVED');
+    } else if (type === 'RESOLVED' || type === 'RESOLVED_TODAY') {
+      filtered = allIncidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'RESOLVED' || s === 'VERIFIED_RESOLUTION';
+      });
       if (titleEl) titleEl.innerText = '✅ RESOLVED & VERIFIED REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Completed repairs verified with before/after photographic proof';
       if (badgeEl) badgeEl.innerText = `VERIFIED FIXES (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
-    } else if (metricType === 'CRITICAL') {
-      filtered = allIncidents.filter(i => (i.severity || '').toUpperCase() === 'CRITICAL');
+    } else if (type === 'CRITICAL' || type === 'CRITICAL_ALERTS') {
+      filtered = allIncidents.filter(i => String(i.severity || '').toUpperCase() === 'CRITICAL');
       if (titleEl) titleEl.innerText = '🚨 CRITICAL PRIORITY ROAD HAZARDS';
-      if (subtitleEl) subtitleEl.innerText = 'Severe depth hazards requiring immediate emergency dispatch';
+      if (subtitleEl) subtitleEl.innerText = 'Severe depth cavities (>10cm) & hazardous road defects requiring immediate emergency dispatch';
       if (badgeEl) badgeEl.innerText = `URGENT ACTION (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="alert-octagon" class="w-5 h-5 text-red-400"></i>';
+
+      // Synchronize map filter for immediate visual clarity
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'CRITICAL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     } else {
       if (titleEl) titleEl.innerText = '📋 ALL CITY ROAD INCIDENTS (DATABASE AUDIT)';
-      if (subtitleEl) subtitleEl.innerText = 'Complete registry of all road defects detected across Kolkata';
+      if (subtitleEl) subtitleEl.innerText = 'Complete registry of all road defects detected across Kolkata corridors';
       if (badgeEl) badgeEl.innerText = `TOTAL INCIDENTS (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="layers" class="w-5 h-5 text-blue-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'ALL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     }
 
     if (filtered.length === 0) {
@@ -4933,8 +5062,8 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
       itemsHtml = filtered.map(inc => {
         const status = inc.status || 'UNRESOLVED';
         const severity = inc.severity || 'MEDIUM';
-        const isCritical = severity.toUpperCase() === 'CRITICAL';
-        const isResolved = status.toUpperCase() === 'RESOLVED';
+        const isCritical = String(severity).toUpperCase() === 'CRITICAL';
+        const isResolved = String(status).toUpperCase() === 'RESOLVED';
         const borderColor = isResolved ? 'border-emerald-500/40' : (isCritical ? 'border-red-500/50' : 'border-navy-800');
         const lat = Array.isArray(inc.coords) ? inc.coords[0] : (inc.latitude || inc.lat || 22.5512);
         const lng = Array.isArray(inc.coords) ? inc.coords[1] : (inc.longitude || inc.lng || 88.3524);
@@ -4948,10 +5077,11 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
                 <img src="${photoUrl}" alt="${inc.id}" class="w-full h-full object-cover" onerror="this.src='assets/evidence/pothole_park_street.jpg'" />
               </div>
               <div>
-                <div class="flex items-center gap-2 mb-1">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
                   <strong class="text-white text-sm font-mono font-bold">${inc.id}</strong>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getStatusBadgeClass(status)}">${status}</span>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getSeverityColorClass(severity)}">${severity}</span>
+                  ${inc.depth ? `<span class="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Depth: ${inc.depth} cm</span>` : ''}
                 </div>
                 <div class="text-xs text-slate-200 font-semibold font-sans">${inc.location || inc.address || 'Kolkata Corridor'}</div>
                 <div class="text-[10.5px] text-slate-400 mt-1 font-mono">
@@ -4971,6 +5101,12 @@ function openKpiDrilldownModal(metricType = 'TOTAL') {
                 <i data-lucide="search" class="w-3.5 h-3.5"></i>
                 <span>Inspect Evidence &rarr;</span>
               </button>
+              ${!isResolved ? `
+                <button onclick="closeKpiDrilldownModal(); openWorkOrderModal('${inc.id}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow transition cursor-pointer">
+                  <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                  <span>Dispatch</span>
+                </button>
+              ` : ''}
             </div>
           </div>
         `;

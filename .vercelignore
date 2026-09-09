@@ -1,0 +1,10 @@
+.git
+backend/
+ai-detection/
+tests/
+database-supabase/
+yolov8n.pt
+*.pt
+*.pyc
+__pycache__/
+docker-compose.yml
