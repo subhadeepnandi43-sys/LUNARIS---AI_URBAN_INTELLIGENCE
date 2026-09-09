@@ -32,3 +32,4 @@ runs/
 ai-detection/runs/
 ai-detection/pothole_dataset/
 
+.vercel

@@ -3214,13 +3214,22 @@ function openIncidentDetails(incidentId) {
   }
 
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('z-index', '99999', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+  }
   if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 }
 
 function closeIncidentDetailsModal() {
   const modal = document.getElementById('incident-details-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.setProperty('display', 'none', 'important');
+  }
 }
 
 /**
@@ -3960,15 +3969,20 @@ function openKpiDrilldownModal(metricType) {
 
   if (!modal || !listEl) return;
 
+  const rawType = (metricType || 'TOTAL').toUpperCase().trim();
+  const type = rawType.replace(/[\s-]/g, '_');
+
   let itemsHtml = '';
 
-  if (metricType === 'BUSES') {
+  if (type === 'BUSES' || type === 'ACTIVE_BUSES') {
     if (titleEl) titleEl.innerText = '🚌 ACTIVE TRANSIT FLEET TELEMETRY';
-    if (subtitleEl) subtitleEl.innerText = 'Showing all 4 live public transit buses & camera streams in Kolkata';
+    if (subtitleEl) subtitleEl.innerText = 'Showing all live public transit buses & camera streams across Kolkata corridors';
     if (badgeEl) badgeEl.innerText = `ACTIVE SENSORS (${DashboardState.buses.length})`;
     if (iconEl) iconEl.innerHTML = '<i data-lucide="bus" class="w-5 h-5 text-cyan-400"></i>';
 
     itemsHtml = DashboardState.buses.map(bus => {
+      const busId = bus.id || bus.bus_code || 'BUS-01';
+      const cleanBusNum = String(busId).replace('BUS-', '');
       const lat = Array.isArray(bus.coords) ? bus.coords[0] : (bus.latitude || 22.5512);
       const lng = Array.isArray(bus.coords) ? bus.coords[1] : (bus.longitude || 88.3524);
 
@@ -3976,15 +3990,15 @@ function openKpiDrilldownModal(metricType) {
         <div class="bg-navy-950 p-4 rounded-xl border border-navy-800 hover:border-cyan-500/50 transition flex flex-wrap items-center justify-between gap-3 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-sm">
-              ${bus.id.replace('BUS-', '')}
+              ${cleanBusNum}
             </div>
             <div>
               <div class="text-white font-bold flex items-center gap-2 text-xs">
-                <span>${bus.id}</span>
+                <span>${busId}</span>
                 <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">🟢 ${bus.status || 'ACTIVE'}</span>
               </div>
               <div class="text-[11px] text-slate-300 mt-0.5 font-sans">${bus.route || 'Kolkata Arterial Route'} &bull; Plate: <strong class="text-slate-200">${bus.plate || 'WB-04-E-2910'}</strong></div>
-              <div class="text-[10px] text-cyan-300 mt-0.5">GPS: ${typeof lat === 'number' ? lat.toFixed(4) : lat}° N, ${typeof lng === 'number' ? lng.toFixed(4) : lng}° E</div>
+              <div class="text-[10px] text-cyan-300 mt-0.5 font-mono">GPS: ${typeof lat === 'number' ? lat.toFixed(4) : lat}° N, ${typeof lng === 'number' ? lng.toFixed(4) : lng}° E</div>
             </div>
           </div>
           <div class="flex items-center gap-2.5">
@@ -3992,11 +4006,11 @@ function openKpiDrilldownModal(metricType) {
               <div class="text-emerald-400 font-bold text-xs">${bus.speed || '32 km/h'}</div>
               <div class="text-[10px] text-slate-400">10 FPS AI Sync</div>
             </div>
-            <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${bus.id}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition">
+            <button onclick="closeKpiDrilldownModal(); flyToCoordinates(${lat}, ${lng}, 16, '${busId}')" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-750 text-cyan-300 border border-cyan-500/30 rounded-lg font-bold text-xs flex items-center gap-1 transition">
               <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
               <span>Locate</span>
             </button>
-            <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${bus.id}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition">
+            <button onclick="closeKpiDrilldownModal(); openLiveCameraStream('${busId}')" class="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold flex items-center gap-1 shadow transition">
               <i data-lucide="video" class="w-3.5 h-3.5"></i>
               <span>Live Camera</span>
             </button>
@@ -4009,35 +4023,57 @@ function openKpiDrilldownModal(metricType) {
     // Incident Filter Modes: TOTAL, UNRESOLVED, IN_PROGRESS, RESOLVED, CRITICAL
     let filtered = DashboardState.incidents;
 
-    if (metricType === 'UNRESOLVED') {
-      filtered = DashboardState.incidents.filter(i => i.status === 'UNRESOLVED' || i.status === 'DETECTED');
+    if (type === 'UNRESOLVED') {
+      filtered = DashboardState.incidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'UNRESOLVED' || s === 'DETECTED';
+      });
       if (titleEl) titleEl.innerText = '⏳ UNRESOLVED ROAD DEFECTS (PENDING REVIEW)';
       if (subtitleEl) subtitleEl.innerText = 'Incidents flagged by AI edge cameras awaiting official municipal verification';
       if (badgeEl) badgeEl.innerText = `PENDING REVIEW (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="clock" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'IN_PROGRESS') {
-      filtered = DashboardState.incidents.filter(i => i.status === 'IN PROGRESS' || i.status === 'ASSIGNED' || i.status === 'VERIFIED');
+    } else if (type === 'IN_PROGRESS') {
+      filtered = DashboardState.incidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'IN PROGRESS' || s === 'IN_PROGRESS' || s === 'ASSIGNED' || s === 'VERIFIED';
+      });
       if (titleEl) titleEl.innerText = '🚚 IN PROGRESS ROAD REPAIRS (CREWS DEPLOYED)';
       if (subtitleEl) subtitleEl.innerText = 'Active work orders assigned to KMC Rapid Squads currently undergoing repair';
       if (badgeEl) badgeEl.innerText = `CREWS ACTIVE (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>';
-    } else if (metricType === 'RESOLVED') {
-      filtered = DashboardState.incidents.filter(i => i.status === 'RESOLVED');
+    } else if (type === 'RESOLVED' || type === 'RESOLVED_TODAY') {
+      filtered = DashboardState.incidents.filter(i => {
+        const s = String(i.status || '').toUpperCase();
+        return s === 'RESOLVED' || s === 'VERIFIED_RESOLUTION';
+      });
       if (titleEl) titleEl.innerText = '✅ RESOLVED & VERIFIED REPAIRS';
       if (subtitleEl) subtitleEl.innerText = 'Completed repairs verified with before/after photographic proof';
       if (badgeEl) badgeEl.innerText = `VERIFIED FIXES (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
-    } else if (metricType === 'CRITICAL') {
-      filtered = DashboardState.incidents.filter(i => i.severity === 'CRITICAL');
+    } else if (type === 'CRITICAL' || type === 'CRITICAL_ALERTS') {
+      filtered = DashboardState.incidents.filter(i => String(i.severity || '').toUpperCase() === 'CRITICAL');
       if (titleEl) titleEl.innerText = '🚨 CRITICAL PRIORITY ROAD HAZARDS';
-      if (subtitleEl) subtitleEl.innerText = 'Severe depth hazards requiring immediate emergency dispatch';
+      if (subtitleEl) subtitleEl.innerText = 'Severe depth cavities (>10cm) & hazardous road defects requiring immediate emergency dispatch';
       if (badgeEl) badgeEl.innerText = `URGENT ACTION (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="alert-octagon" class="w-5 h-5 text-red-400"></i>';
+
+      // Synchronize map filter for immediate visual clarity
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'CRITICAL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     } else {
       if (titleEl) titleEl.innerText = '📋 ALL CITY ROAD INCIDENTS (DATABASE AUDIT)';
-      if (subtitleEl) subtitleEl.innerText = 'Complete registry of all road defects detected across Kolkata';
+      if (subtitleEl) subtitleEl.innerText = 'Complete registry of all road defects detected across Kolkata corridors';
       if (badgeEl) badgeEl.innerText = `TOTAL INCIDENTS (${filtered.length})`;
       if (iconEl) iconEl.innerHTML = '<i data-lucide="layers" class="w-5 h-5 text-blue-400"></i>';
+
+      const sevFilter = document.getElementById('filter-severity');
+      if (sevFilter) {
+        sevFilter.value = 'ALL';
+        if (typeof applyMapFilters === 'function') applyMapFilters();
+      }
     }
 
     if (filtered.length === 0) {
@@ -4050,8 +4086,8 @@ function openKpiDrilldownModal(metricType) {
       `;
     } else {
       itemsHtml = filtered.map(inc => {
-        const isCritical = inc.severity === 'CRITICAL';
-        const isResolved = inc.status === 'RESOLVED';
+        const isCritical = String(inc.severity || '').toUpperCase() === 'CRITICAL';
+        const isResolved = String(inc.status || '').toUpperCase() === 'RESOLVED';
         const borderColor = isResolved ? 'border-emerald-500/40' : (isCritical ? 'border-red-500/50' : 'border-navy-800');
         const lat = Array.isArray(inc.coords) ? inc.coords[0] : (inc.latitude || inc.lat || 22.5512);
         const lng = Array.isArray(inc.coords) ? inc.coords[1] : (inc.longitude || inc.lng || 88.3524);
@@ -4065,10 +4101,11 @@ function openKpiDrilldownModal(metricType) {
                 <img src="${photoUrl}" alt="${inc.id}" class="w-full h-full object-cover" onerror="this.src='assets/evidence/pothole_park_street.jpg'" />
               </div>
               <div>
-                <div class="flex items-center gap-2 mb-1">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
                   <strong class="text-white text-sm font-mono font-bold">${inc.id}</strong>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getStatusBadgeClass(inc.status)}">${inc.status}</span>
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded ${getSeverityColorClass(inc.severity)}">${inc.severity}</span>
+                  ${inc.depth ? `<span class="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Depth: ${inc.depth} cm</span>` : ''}
                 </div>
                 <div class="text-xs text-slate-200 font-semibold font-sans">${inc.location || inc.address || 'Kolkata Corridor'}</div>
                 <div class="text-[10.5px] text-slate-400 mt-1 font-mono">
@@ -4088,6 +4125,12 @@ function openKpiDrilldownModal(metricType) {
                 <i data-lucide="search" class="w-3.5 h-3.5"></i>
                 <span>Inspect Evidence &rarr;</span>
               </button>
+              ${!isResolved ? `
+                <button onclick="closeKpiDrilldownModal(); openWorkOrderModal('${inc.id}')" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs flex items-center gap-1 shadow transition">
+                  <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                  <span>Dispatch</span>
+                </button>
+              ` : ''}
             </div>
           </div>
         `;
