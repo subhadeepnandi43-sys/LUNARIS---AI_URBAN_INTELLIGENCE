@@ -799,11 +799,31 @@ async function syncSupabaseData() {
       }
     }
 
-    // 1. Fetch Incidents from Supabase
-    const rawIncidents = await fetchSupabaseIncidents();
+    // 1. Fetch Incidents and Evidence from Supabase
+    const [rawIncidents, rawEvidence] = await Promise.all([
+      fetchSupabaseIncidents(),
+      typeof window.fetchSupabaseEvidence === 'function' ? window.fetchSupabaseEvidence() : Promise.resolve([])
+    ]);
+
+    const evidenceMap = {};
+    if (Array.isArray(rawEvidence)) {
+      rawEvidence.forEach(ev => {
+        if (!ev.incident_id) return;
+        if (!evidenceMap[ev.incident_id]) evidenceMap[ev.incident_id] = {};
+        const isVideo = (ev.file_type && ev.file_type.includes('video')) ||
+                        (ev.storage_path && (ev.storage_path.endsWith('.webm') || ev.storage_path.endsWith('.mp4')));
+        if (isVideo) {
+          evidenceMap[ev.incident_id].video_url = ev.public_url;
+        } else {
+          evidenceMap[ev.incident_id].before_evidence = ev.public_url;
+        }
+      });
+    }
+
     if (Array.isArray(rawIncidents) && rawIncidents.length > 0) {
       const fetched = rawIncidents.map(row => {
         const incId = row.incident_id || row.id || 'RD-1000';
+        const evData = evidenceMap[incId] || {};
         return {
           id: incId,
           type: row.category || row.type || 'Pothole',
@@ -825,9 +845,9 @@ async function syncSupabaseData() {
           verified_by_buses: row.verified_by_buses || ['BUS-07'],
           consensus_count: row.consensus_count || 1,
           confidence_score: row.confidence_score || 98.0,
-          before_evidence: (row.before_evidence && !row.before_evidence.includes('unsplash')) ? row.before_evidence : getDynamicRealEvidencePhoto(incId, row.category || row.type),
+          before_evidence: evData.before_evidence || ((row.before_evidence && !row.before_evidence.includes('unsplash')) ? row.before_evidence : getDynamicRealEvidencePhoto(incId, row.category || row.type)),
           after_evidence: row.after_evidence || null,
-          video_url: row.video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+          video_url: evData.video_url || row.video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
           details: row.details || row.title || 'Detected by vehicle optical AI sensor'
         };
       });
@@ -1832,6 +1852,26 @@ function handleUserUploadedCameraMedia(event) {
 }
 
 /**
+ * Convert base64 data URI to standard binary Blob for cloud storage
+ */
+function dataURItoBlob(dataURI) {
+  try {
+    if (!dataURI || !dataURI.includes(',')) return null;
+    const split = dataURI.split(',');
+    const byteString = atob(split[1]);
+    const mimeString = split[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Continuous Rolling MediaRecorder keeping the last 4 seconds of video
  */
 function startRollingVideoRecorder(stream) {
@@ -2028,9 +2068,10 @@ async function saveLiveDetectedIncident(detParams = {}) {
 
   // 2. Package 4-Second Video Clip
   let videoClipUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  let videoBlob = null;
   if (cameraRollingVideoChunks.length > 0) {
     try {
-      const videoBlob = new Blob(cameraRollingVideoChunks, { type: 'video/webm' });
+      videoBlob = new Blob(cameraRollingVideoChunks, { type: 'video/webm' });
       videoClipUrl = URL.createObjectURL(videoBlob);
     } catch (e) {}
   }
@@ -2094,26 +2135,77 @@ async function saveLiveDetectedIncident(detParams = {}) {
   };
   DashboardState.alerts.unshift(newAlert);
 
-  // 6. Save to Supabase (if connected)
-  if (window.supabaseClient) {
-    try {
-      await supabaseClient.from('incidents').insert([{
-        incident_id: newIncident.id,
-        category: newIncident.category,
-        title: newIncident.title,
-        address: newIncident.address,
-        latitude: newIncident.latitude,
-        longitude: newIncident.longitude,
-        severity: newIncident.severity,
-        status: 'UNRESOLVED',
-        depth: newIncident.depth,
-        width: newIncident.width,
-        confidence_score: newIncident.confidence_score,
-        bus_id: busId
-      }]);
-    } catch (e) {
-      console.warn('[LUNARIS] Supabase insert note:', e.message);
-    }
+  // 6. Save to Supabase & Store Evidence in Database & Cloud Storage
+  if (window.supabaseClient || typeof insertSupabaseIncident === 'function') {
+    (async () => {
+      try {
+        if (typeof insertSupabaseIncident === 'function') {
+          await insertSupabaseIncident({
+            incident_id: newIncident.id,
+            category: newIncident.category,
+            title: newIncident.title,
+            address: newIncident.address,
+            latitude: newIncident.latitude,
+            longitude: newIncident.longitude,
+            severity: newIncident.severity,
+            status: 'DETECTED',
+            consensus_count: 1,
+            confidence_score: newIncident.confidence_score
+          });
+        } else if (window.supabaseClient) {
+          await supabaseClient.from('incidents').insert([{
+            incident_id: newIncident.id,
+            category: newIncident.category,
+            title: newIncident.title,
+            address: newIncident.address,
+            latitude: newIncident.latitude,
+            longitude: newIncident.longitude,
+            severity: newIncident.severity,
+            status: 'DETECTED',
+            consensus_count: 1,
+            confidence_score: newIncident.confidence_score
+          }]);
+        }
+
+        // Upload recorded video clip to Supabase Storage and store in evidence table
+        if (videoBlob && videoBlob.size > 0 && typeof uploadAndStoreEvidence === 'function') {
+          try {
+            const publicVideoUrl = await uploadAndStoreEvidence(newIncident.id, videoBlob, 'video/webm', 'recordings');
+            if (publicVideoUrl) {
+              newIncident.video_url = publicVideoUrl;
+              console.log(`[LUNARIS] Recorded video successfully stored in database: ${publicVideoUrl}`);
+            }
+          } catch (vErr) {
+            console.warn('[LUNARIS] Video storage error:', vErr);
+          }
+        }
+
+        // Upload photo snapshot to Supabase Storage and store in evidence table
+        if (snapshotUrl && snapshotUrl.startsWith('data:image') && typeof uploadAndStoreEvidence === 'function') {
+          try {
+            const photoBlob = dataURItoBlob(snapshotUrl);
+            if (photoBlob) {
+              const publicPhotoUrl = await uploadAndStoreEvidence(newIncident.id, photoBlob, 'image/jpeg', 'snapshots');
+              if (publicPhotoUrl) {
+                newIncident.before_evidence = publicPhotoUrl;
+              }
+            }
+          } catch (pErr) {
+            console.warn('[LUNARIS] Photo storage error:', pErr);
+          }
+        }
+
+        // Update in localStorage with permanent URLs
+        try {
+          const localSaved = JSON.parse(localStorage.getItem('lunaris_captured_incidents') || '[]');
+          const updated = [newIncident, ...localSaved.filter(i => i.id !== newIncident.id)].slice(0, 100);
+          localStorage.setItem('lunaris_captured_incidents', JSON.stringify(updated));
+        } catch (e) {}
+
+      } catch (e) {
+        console.warn('[LUNARIS] Supabase insert note:', e.message);
+      }
+    })();
   }
 
   // 7. Update HUD Alert Banner

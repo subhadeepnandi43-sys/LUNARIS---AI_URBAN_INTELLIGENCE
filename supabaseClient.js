@@ -7,20 +7,25 @@
 const SUPABASE_CONFIG = {
   url: 'https://ecmtwoccsdlhphdlutmz.supabase.co',
   anonKey: 'sb_publishable_l4l1lR2MLi_WOwtjs4CxTw_yBjCx01G',
+  key: 'sb_publishable_l4l1lR2MLi_WOwtjs4CxTw_yBjCx01G',
   projectRef: 'ecmtwoccsdlhphdlutmz'
 };
 
-// Initialize Supabase JS Client (with lazy getter)
+// Initialize Supabase JS Client (with lazy getter & global window export)
 let supabaseClient = null;
 
 function getSupabaseClient() {
   if (!supabaseClient && window.supabase && typeof window.supabase.createClient === 'function') {
     try {
       supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+      window.supabaseClient = supabaseClient;
       console.log('[LUNARIS] Supabase Client Initialized via getSupabaseClient():', SUPABASE_CONFIG.url);
     } catch (err) {
       console.warn('[LUNARIS] Failed to initialize Supabase Client:', err);
     }
+  }
+  if (supabaseClient && !window.supabaseClient) {
+    window.supabaseClient = supabaseClient;
   }
   return supabaseClient;
 }
@@ -30,6 +35,9 @@ if (window.supabase) {
 } else {
   console.warn('[LUNARIS] Supabase JS SDK not loaded yet, direct REST fallback active.');
 }
+
+window.SUPABASE_CONFIG = SUPABASE_CONFIG;
+window.supabaseClient = supabaseClient;
 
 /**
  * Direct REST Fallback to Supabase PostgREST Engine
@@ -118,6 +126,37 @@ async function fetchSupabaseIncidents() {
     return Array.isArray(data) ? data : [];
   } catch (err) {
     console.warn('[LUNARIS Supabase] REST fetchIncidents fallback error:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch All Evidence (Videos & Photos) from Supabase (public.evidence)
+ */
+async function fetchSupabaseEvidence() {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('evidence')
+        .select('*')
+        .order('captured_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+      if (error) console.warn('[LUNARIS Supabase] SDK fetchEvidence notice:', error.message);
+    } catch (e) {
+      console.warn('[LUNARIS Supabase] SDK fetchEvidence error:', e);
+    }
+  }
+
+  // Direct REST fallback
+  try {
+    const data = await directSupabaseRest('evidence?select=*&order=captured_at.desc');
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[LUNARIS Supabase] REST fetchEvidence fallback error:', err);
     return [];
   }
 }
@@ -234,11 +273,24 @@ async function fetchSupabaseTrafficEvents() {
 }
 
 /**
- * Insert a New Detected Incident into Supabase
+ * Insert a New Detected Incident into Supabase (sanitized to valid database columns)
  */
 async function insertSupabaseIncident(incidentPayload) {
   const client = getSupabaseClient();
-  const payloadArray = Array.isArray(incidentPayload) ? incidentPayload : [incidentPayload];
+  const rawArray = Array.isArray(incidentPayload) ? incidentPayload : [incidentPayload];
+
+  const payloadArray = rawArray.map(item => ({
+    incident_id: item.incident_id || item.id,
+    title: item.title || 'Detected Road Surface Anomaly',
+    category: item.category || item.type || 'Pothole',
+    severity: (item.severity || 'MEDIUM').toUpperCase(),
+    status: item.status === 'UNRESOLVED' ? 'DETECTED' : (item.status || 'DETECTED'),
+    latitude: item.latitude || (item.coords ? item.coords[0] : 22.5626),
+    longitude: item.longitude || (item.coords ? item.coords[1] : 88.3639),
+    address: item.address || item.location || 'Kolkata Metropolitan Area',
+    consensus_count: item.consensus_count || 1,
+    confidence_score: item.confidence_score || 96.0
+  }));
 
   if (client) {
     try {
@@ -259,6 +311,74 @@ async function insertSupabaseIncident(incidentPayload) {
     method: 'POST',
     body: payloadArray
   });
+}
+
+/**
+ * Store Evidence (Video clip or Image frame) in Supabase Storage and public.evidence table
+ */
+async function uploadAndStoreEvidence(incidentId, fileBlob, fileType = 'video/webm', prefix = 'recordings') {
+  if (!incidentId || !fileBlob) return null;
+  const client = getSupabaseClient();
+  const ext = fileType.includes('video') ? 'webm' : 'jpg';
+  const filePath = `${prefix}/${incidentId}_${Date.now()}.${ext}`;
+
+  try {
+    if (client) {
+      const { data, error } = await client.storage
+        .from('incident-evidence')
+        .upload(filePath, fileBlob, { contentType: fileType, upsert: true });
+
+      if (!error) {
+        const publicUrl = client.storage.from('incident-evidence').getPublicUrl(filePath).data.publicUrl;
+        
+        await client.from('evidence').insert([{
+          incident_id: incidentId,
+          bucket_id: 'incident-evidence',
+          storage_path: filePath,
+          public_url: publicUrl,
+          file_type: fileType,
+          file_size_bytes: fileBlob.size || 0,
+          captured_at: new Date().toISOString()
+        }]);
+
+        return publicUrl;
+      }
+    }
+  } catch (e) {
+    console.warn('[LUNARIS Evidence] SDK upload notice:', e);
+  }
+
+  // Direct REST fallback for storage & table
+  try {
+    await fetch(`${SUPABASE_CONFIG.url}/storage/v1/object/incident-evidence/${filePath}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_CONFIG.key,
+        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`,
+        'Content-Type': fileType
+      },
+      body: fileBlob
+    });
+
+    const publicUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/incident-evidence/${filePath}`;
+    await directSupabaseRest('evidence', {
+      method: 'POST',
+      body: [{
+        incident_id: incidentId,
+        bucket_id: 'incident-evidence',
+        storage_path: filePath,
+        public_url: publicUrl,
+        file_type: fileType,
+        file_size_bytes: fileBlob.size || 0,
+        captured_at: new Date().toISOString()
+      }]
+    });
+
+    return publicUrl;
+  } catch (err) {
+    console.warn('[LUNARIS Evidence] REST upload fallback notice:', err);
+    return null;
+  }
 }
 
 /**
@@ -591,8 +711,10 @@ window.getSupabaseClient = getSupabaseClient;
 window.directSupabaseRest = directSupabaseRest;
 window.testSupabaseConnection = testSupabaseConnection;
 window.fetchSupabaseIncidents = fetchSupabaseIncidents;
+window.fetchSupabaseEvidence = fetchSupabaseEvidence;
 window.fetchSupabaseBusFleet = fetchSupabaseBusFleet;
 window.fetchSupabaseBusLocations = fetchSupabaseBusLocations;
 window.fetchSupabaseAlerts = fetchSupabaseAlerts;
 window.insertSupabaseIncident = insertSupabaseIncident;
+window.uploadAndStoreEvidence = uploadAndStoreEvidence;
 window.registerSupabaseCamera = registerSupabaseCamera;

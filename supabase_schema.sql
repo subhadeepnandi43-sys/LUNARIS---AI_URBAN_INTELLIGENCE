@@ -156,6 +156,7 @@ CREATE TABLE public.incidents (
     assigned_authority TEXT DEFAULT 'Road Maintenance Department',
     before_evidence TEXT,
     after_evidence TEXT,
+    video_url TEXT,
     initial_detection_id UUID REFERENCES public.detections(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -11,7 +11,7 @@
   
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabaseClient.js"></script>
+  <script src="supabaseClient.js?v=16.0"></script>
 
   <script>
     tailwind.config = {
@@ -494,75 +494,184 @@
         photoEvidenceDataUrl = canvas.toDataURL('image/jpeg', 0.85);
       }
 
-      // 3. Start 3-Second Video Clip Recording using MediaRecorder
-      startVideoClipRecording();
-
-      // 4. Dispatch Incident & Detection to Supabase with real telemetry
+      // 3. Generate Incident ID
       const incidentId = `RD-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // 4. Start 3.5-Second Video Clip Recording using MediaRecorder & Store in Database
+      startVideoClipRecording(incidentId);
+
+      // 5. Dispatch Incident to Supabase with valid database schema columns
       const payload = {
         incident_id: incidentId,
         title: `Auto-Confirmed Pothole by ${MobileState.busId}`,
         category: 'Pothole',
         severity: sev,
-        severity_reason: `Confirmed across 3 frames by LUNEX-POTHOLE-V1 AI (Confidence: ${conf.toFixed(1)}%, Est Depth: ${depth}cm)`,
         status: 'DETECTED',
         latitude: MobileState.latitude,
         longitude: MobileState.longitude,
         address: `Live Location (${MobileState.latitude.toFixed(4)}° N, ${MobileState.longitude.toFixed(4)}° E)`,
         consensus_count: 3,
-        confidence_score: conf,
-        verified_by_buses: [MobileState.busId],
-        before_evidence: photoEvidenceDataUrl,
-        assigned_authority: 'Road Maintenance Department',
-        created_at: new Date().toISOString()
+        confidence_score: parseFloat(conf.toFixed(1))
       };
 
-      if (window.supabaseClient) {
+      try {
+        if (typeof insertSupabaseIncident === 'function') {
+          await insertSupabaseIncident(payload);
+        } else {
+          const client = window.supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
+          if (client) {
+            await client.from('incidents').insert([payload]);
+          }
+        }
+      } catch (e) {
+        console.warn('[LUNARIS] Supabase insert note:', e);
+      }
+
+      // 5. Store snapshot photo in Supabase Storage & database evidence table
+      const video = document.getElementById('mobile-video');
+      const canvas = document.getElementById('snapshot-canvas');
+      if (video && video.videoWidth > 0) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const x = (potholeDet ? potholeDet.x_min : 0.3) * canvas.width;
+        const y = (potholeDet ? potholeDet.y_min : 0.4) * canvas.height;
+        const w = ((potholeDet ? potholeDet.x_max - potholeDet.x_min : 0.4)) * canvas.width;
+        const h = ((potholeDet ? potholeDet.y_max - potholeDet.y_min : 0.35)) * canvas.height;
+
+        ctx.strokeStyle = sev === 'CRITICAL' ? '#dc2626' : '#ea580c';
+        ctx.lineWidth = 5;
+        ctx.strokeRect(x, y, w, h);
+
+        const photoEvidenceDataUrl = canvas.toDataURL('image/jpeg', 0.85);
         try {
-          await supabaseClient.from('incidents').insert([payload]);
-          await supabaseClient.from('notifications').insert([{
-            incident_id: incidentId,
-            title: `🚨 ${sev} PRIORITY ROAD DEFECT`,
-            message: `Pothole confirmed at (${MobileState.latitude.toFixed(4)}, ${MobileState.longitude.toFixed(4)}) by ${MobileState.busId} [LUNEX AI ${conf.toFixed(1)}%]`,
-            priority: sev,
-            read: false
-          }]);
-        } catch (e) {
-          console.error('Supabase dispatch note:', e);
+          const photoBlob = dataURItoBlob(photoEvidenceDataUrl);
+          if (photoBlob) {
+            if (typeof uploadAndStoreEvidence === 'function') {
+              await uploadAndStoreEvidence(incidentId, photoBlob, 'image/jpeg', 'snapshots');
+            } else {
+              const client = window.supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
+              if (client) {
+                const photoPath = `snapshots/${incidentId}_${Date.now()}.jpg`;
+                const { error: photoUploadErr } = await client.storage
+                  .from('incident-evidence')
+                  .upload(photoPath, photoBlob, { contentType: 'image/jpeg', upsert: true });
+
+                if (!photoUploadErr) {
+                  const photoPublicUrl = client.storage.from('incident-evidence').getPublicUrl(photoPath).data.publicUrl;
+                  await client.from('evidence').insert([{
+                    incident_id: incidentId,
+                    bucket_id: 'incident-evidence',
+                    storage_path: photoPath,
+                    public_url: photoPublicUrl,
+                    file_type: 'image/jpeg',
+                    file_size_bytes: photoBlob.size,
+                    captured_at: new Date().toISOString()
+                  }]);
+                }
+              }
+            }
+          }
+        } catch (pErr) {
+          console.warn('Photo evidence upload note:', pErr);
         }
       }
 
-      // Show on-screen toast banner
-      const toast = document.getElementById('detection-toast');
-      if (toast) {
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 4500);
-      }
+      // 6. Update local UI & play alert tone
+      playPhoneAlertTone();
+      showToast(`🚨 HIGH SEVERITY DEFECT CONFIRMED: ${incidentId} (Video Recording...)`);
 
-      showToast(`🎯 ${incidentId} [POTHOLE ${conf.toFixed(1)}%] Confirmed (3/3) & Dispatched!`);
+      // 7. Update On-Screen Stats
+      const detectedCountEl = document.getElementById('stat-detected-count');
+      if (detectedCountEl) {
+        const cur = parseInt(detectedCountEl.innerText) || 0;
+        detectedCountEl.innerText = cur + 1;
+      }
     }
 
-    function startVideoClipRecording() {
+    function dataURItoBlob(dataURI) {
+      try {
+        const byteString = atob(dataURI.split(',')[1]);
+        const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        return new Blob([ab], { type: mimeString });
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function startVideoClipRecording(incidentId) {
       if (!MobileState.mediaStream || !window.MediaRecorder) return;
       try {
         MobileState.recordedChunks = [];
-        const recorder = new MediaRecorder(MobileState.mediaStream, { mimeType: 'video/webm' });
+        const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? { mimeType: 'video/webm;codecs=vp9' }
+          : (MediaRecorder.isTypeSupported('video/webm') ? { mimeType: 'video/webm' } : {});
+
+        const recorder = new MediaRecorder(MobileState.mediaStream, options);
         
         recorder.ondataavailable = e => {
           if (e.data && e.data.size > 0) MobileState.recordedChunks.push(e.data);
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
           document.getElementById('recording-badge')?.classList.add('hidden');
-          console.log('[LUNARIS] 3-second video clip captured successfully.');
+          console.log('[LUNARIS] 3.5-second video clip captured successfully.');
+
+          if (MobileState.recordedChunks.length > 0 && incidentId) {
+            try {
+              const videoBlob = new Blob(MobileState.recordedChunks, { type: 'video/webm' });
+              let publicUrl = null;
+
+              if (typeof uploadAndStoreEvidence === 'function') {
+                publicUrl = await uploadAndStoreEvidence(incidentId, videoBlob, 'video/webm', 'recordings');
+              } else {
+                const client = window.supabaseClient || (typeof getSupabaseClient === 'function' ? getSupabaseClient() : null);
+                if (client) {
+                  const filePath = `recordings/${incidentId}_${Date.now()}.webm`;
+                  const { error: uploadError } = await client.storage
+                    .from('incident-evidence')
+                    .upload(filePath, videoBlob, { contentType: 'video/webm', upsert: true });
+
+                  if (!uploadError) {
+                    publicUrl = client.storage.from('incident-evidence').getPublicUrl(filePath).data.publicUrl;
+                    await client.from('evidence').insert([{
+                      incident_id: incidentId,
+                      bucket_id: 'incident-evidence',
+                      storage_path: filePath,
+                      public_url: publicUrl,
+                      file_type: 'video/webm',
+                      file_size_bytes: videoBlob.size,
+                      captured_at: new Date().toISOString()
+                    }]);
+                  }
+                }
+              }
+
+              if (publicUrl) {
+                console.log(`[LUNARIS] Video stored in database for ${incidentId}: ${publicUrl}`);
+                showToast(`🎥 Video evidence successfully stored in database for ${incidentId}!`);
+              }
+            } catch (err) {
+              console.error('Failed to store recorded video in database:', err);
+            }
+          }
         };
 
-        recorder.start();
+        recorder.start(500);
         document.getElementById('recording-badge')?.classList.remove('hidden');
         setTimeout(() => {
           if (recorder.state === 'recording') recorder.stop();
         }, 3500); // 3.5s video clip
-      } catch (e) {}
+      } catch (e) {
+        console.warn('startVideoClipRecording error:', e);
+      }
     }
 
     function playPhoneAlertTone() {
