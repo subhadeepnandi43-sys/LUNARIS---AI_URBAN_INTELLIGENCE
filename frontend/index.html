@@ -248,21 +248,6 @@
 
         <!-- Right: System Mode, SIH Demo, Monsoon Predictive AI, Audio Toggle, Notifications, Admin Profile -->
         <div class="flex items-center gap-2 sm:gap-3">
-          
-          <!-- System Operating Mode Toggle (LIVE vs DEMO) -->
-          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-navy-950 border border-navy-800 text-xs font-mono shadow-inner">
-            <span class="text-slate-400 text-[10px] hidden xl:inline">MODE:</span>
-            <button id="system-mode-btn" onclick="toggleSystemOperatingMode()" class="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:brightness-125" title="Click to toggle between LIVE sensing and DEMO simulation">
-              <span id="system-mode-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span id="system-mode-label">DEMO (SIMULATED)</span>
-            </button>
-          </div>
-
-          <!-- ⚡ SIH 2026 Autonomous Live Demo Trigger -->
-          <button type="button" id="btn-sih-demo" onclick="triggerSIHLiveDemoSequence()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-mono text-xs font-black transition shadow-lg shadow-amber-500/25 border border-amber-400/50 active:scale-95" title="Execute Autonomous 6-Stage Multi-Bus Consensus & Work Order Demo">
-            <i data-lucide="zap" class="w-4 h-4 text-yellow-100 fill-yellow-200"></i>
-            <span>⚡ SIH LIVE DEMO</span>
-          </button>
 
           <!-- 🌧️ Monsoon Predictive AI Forecaster -->
           <button type="button" onclick="openMonsoonForecasterModal()" class="hidden 2xl:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-navy-950 border border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-400 font-mono text-xs font-bold transition shadow-sm" title="Predictive Road Degradation & Monsoon Vulnerability AI">
